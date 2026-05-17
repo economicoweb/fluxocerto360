@@ -19,9 +19,14 @@ db.enablePersistence({synchronizeTabs: true}).catch(function(err){
 
 // ── PWA: registrar Service Worker ──
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(function(err){
-    console.warn('SW registro falhou:', err);
-  });
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+    .then(function(reg) {
+      // Força verificação de atualização a cada vez que a página abre
+      reg.update();
+    })
+    .catch(function(err){
+      console.warn('SW registro falhou:', err);
+    });
 }
 
 // ── PWA: monitorar conexão ──
