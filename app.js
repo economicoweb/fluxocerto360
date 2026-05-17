@@ -162,6 +162,7 @@ function loadCheckStateFromFirebase(callback) {
 }
 var CLKEY = 'eco_cl_custom';
 var RESKEY = 'eco_resultados';
+var PLANO_KEY = 'eco_planos';
 
 // ===========================================
 // SEGURANÇA — Hash de senhas (SHA-256)
@@ -706,6 +707,7 @@ function setupRole() {
   show('nav-users', isAdmin);
   // Botão de alertas visível para admin e gerência
   show('nav-alertas', isAdmOrGer);
+  show('nav-plano', isAdmOrGer);
   // Inicia verificação periódica de pendências para gestores
   if (isAdmOrGer) {
     pedirPermissaoNotificacao();
@@ -763,6 +765,7 @@ var PAGE_TITLES = {
   dashboard:'Dashboard',checklist:'Checklist',inventario:'Inventário',
   perdas:'Lançar Perdas',central:'Central de Resultados',
   relatorios:'Relatórios',usuarios:'Cadastro de Usuários',
+  plano:'Plano de Ação',
 };
 
 function nav(page, el) {
@@ -794,6 +797,12 @@ function nav(page, el) {
     // Reload resultados from Firebase before rendering central
     loadResultadosFromFirebase(function(){
       switchCentralTab('checklist', document.querySelector('#central-tabs .tab'));
+    });
+  }
+  if (page==='plano') {
+    loadPlanosFromFirebase(function(){
+      renderPlanos(planoFiltroAtual||'aberto');
+      atualizarBadgePlano();
     });
   }
   updateDash();
@@ -983,15 +992,20 @@ function buildCLBlock(cl) {
     var belowHtml = '';
     if (tipo === 'simNao') {
       var isSim=val==='sim', isNao=val==='nao';
+      var justifVal = S.checkState[cl.id+'_justif_'+i] || '';
       if (!jaConcluido) {
         belowHtml = '<div style="display:flex;gap:6px;margin-top:8px" onclick="event.stopPropagation()">'
           +'<button onclick="setSimNao(\''+cl.id+'\','+i+',\'sim\')" style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(isSim?'var(--g2)':'var(--gray3)')+';background:'+(isSim?'var(--g3)':'#fff')+';color:'+(isSim?'var(--g)':'var(--t2)')+'">✓ Sim</button>'
           +'<button onclick="setSimNao(\''+cl.id+'\','+i+',\'nao\')" style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(isNao?'var(--r)':'var(--gray3)')+';background:'+(isNao?'var(--r2)':'#fff')+';color:'+(isNao?'var(--r)':'var(--t2)')+'">✗ Não</button>'
           +'</div>';
+        if (isNao) {
+          belowHtml += '<textarea placeholder="Justifique a não-conformidade (obrigatório)..." onblur="salvarJustificativa(\''+cl.id+'\','+i+',this.value)" style="width:100%;margin-top:8px;padding:8px 10px;border:1.5px solid var(--r);border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;min-height:54px;color:var(--t)">'+justifVal+'</textarea>';
+        }
       } else {
         var snLabel=val==='sim'?'✓ Sim':val==='nao'?'✗ Não':'—';
         var snColor=val==='sim'?'var(--g)':val==='nao'?'var(--r)':'var(--t3)';
         belowHtml='<div style="margin-top:6px;font-size:12px;font-weight:700;color:'+snColor+'">'+snLabel+'</div>';
+        if (isNao && justifVal) belowHtml+='<div style="margin-top:4px;padding:6px 10px;background:var(--r2);border-radius:6px;font-size:12px;color:var(--r)">'+justifVal+'</div>';
       }
     } else if (tipo === 'nota') {
       var notaVal=parseInt(val)||0;
@@ -1122,6 +1136,11 @@ function saveTextoItem(clId, idx, val) {
   saveCheckState();
   updateCLProg(cl);
   updateDash();
+}
+
+function salvarJustificativa(clId, idx, val) {
+  S.checkState[clId+'_justif_'+idx] = val.trim() || '';
+  saveCheckState();
 }
 
 function salvarFoto(clId, idx, input) {
@@ -1568,7 +1587,7 @@ function enviarCL(clId, label) {
   document.getElementById('modal-enviar').style.display = 'flex';
 }
 
-function confirmarEnviar() {
+function confirmarEnviar(assinatura) {
   var clId = pendingEnviarId;
   var label = pendingEnviarLabel;
   if (!clId) return;
@@ -1581,7 +1600,15 @@ function confirmarEnviar() {
   var snapshot = cl.itens.map(function(item,idx){
     var val = S.checkState[clId+'_'+item.t];
     var tipo = item.tipo || 'checkbox';
-    return {texto:item.t, obs:item.obs||'', foto:item.foto||false, tipo:tipo, resposta:tipo!=='checkbox'?(val||null):null, fotoAntes:S.checkState[clId+'_foto_antes_'+idx]||null, fotoDepois:S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]||null, feito:!!val};
+    var justificativa = tipo==='simNao' ? (S.checkState[clId+'_justif_'+idx]||'') : '';
+    return {
+      texto:item.t, obs:item.obs||'', foto:item.foto||false, tipo:tipo,
+      resposta:tipo!=='checkbox'?(val||null):null,
+      justificativa:justificativa,
+      fotoAntes:S.checkState[clId+'_foto_antes_'+idx]||null,
+      fotoDepois:S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]||null,
+      feito:!!val
+    };
   });
   var feitos = snapshot.filter(function(i){return i.feito;}).length;
   var total = snapshot.length;
@@ -1594,11 +1621,18 @@ function confirmarEnviar() {
     id:genId(), checklistId:clId, checklistNome:label, setor:setor,
     operador:S.currentUser?S.currentUser.nome:'--', perfil:S.role,
     loja:S.currentUser?S.currentUser.loja||'':'',
-    dataHora:dh, itens:snapshot, feitos:feitos, total:total, pct:pct
+    dataHora:dh, itens:snapshot, feitos:feitos, total:total, pct:pct,
+    assinatura:assinatura||null
   };
   var lista = getAllResultados();
   lista.push(res);
   saveResultados(lista);
+  // Auto-criar planos de ação para itens Sim/Não com resposta "Não"
+  snapshot.forEach(function(item) {
+    if (item.tipo==='simNao' && item.resposta==='nao') {
+      criarPlanoAuto(label, item.texto, item.justificativa||'', setor);
+    }
+  });
   addHist('Checklist','"'+label+'" enviado ('+pct+'%)','Geral',pct===100?'st-ok':'st-warn',pct+'%');
   updateDash();
   showToast(pct===100 ? 'Checklist enviado com sucesso!' : 'Checklist enviado com '+pct+'% concluido');
@@ -1914,6 +1948,7 @@ function verDetalhe(idx) {
       +'<div style="font-size:13px;font-weight:600;'+txtDec+'">'+item.texto+'</div>'
       +(item.obs ? '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+item.obs+'</div>' : '')
       +respostaHtml
+      +(item.justificativa ? '<div style="margin-top:5px;padding:6px 10px;background:var(--r2);border-radius:6px;font-size:12px;color:var(--r)">📋 '+item.justificativa+'</div>' : '')
       +fotoHtml
       +'</div></div></div>';
   }).join('');
@@ -3221,6 +3256,202 @@ function exportarRelatorioSupervisor() {
   } else {
     showToast('Permita pop-ups para gerar o relatório.');
   }
+}
+
+// ===========================================
+// PLANO DE AÇÃO
+// ===========================================
+var editingPlanoId = null;
+var planoFiltroAtual = 'aberto';
+
+function getPlanos() { try { return JSON.parse(localStorage.getItem(PLANO_KEY)||'[]'); } catch(e){ return []; } }
+function savePlanos(list) {
+  localStorage.setItem(PLANO_KEY, JSON.stringify(list));
+  list.forEach(function(p){ db.collection('planos').doc(p.id).set(p).catch(function(){}); });
+}
+function loadPlanosFromFirebase(cb) {
+  db.collection('planos').get().then(function(snap){
+    var list = snap.docs.map(function(d){ return d.data(); });
+    localStorage.setItem(PLANO_KEY, JSON.stringify(list));
+    if (cb) cb();
+  }).catch(function(){ if (cb) cb(); });
+}
+
+function abrirModalPlano(dadosAuto) {
+  editingPlanoId = null;
+  document.getElementById('mplano-title').textContent = 'Novo Plano de Ação';
+  document.getElementById('plano-desc').value = dadosAuto ? (dadosAuto.desc||'') : '';
+  document.getElementById('plano-resp').value = '';
+  document.getElementById('plano-prazo').value = '';
+  document.getElementById('plano-origem').value = dadosAuto ? (dadosAuto.origem||'') : '';
+  document.getElementById('plano-obs').value = '';
+  document.getElementById('mplano-err').style.display='none';
+  document.getElementById('modal-plano').style.display='flex';
+}
+
+function fecharModalPlano() { document.getElementById('modal-plano').style.display='none'; }
+
+function salvarPlano() {
+  var desc = document.getElementById('plano-desc').value.trim();
+  var err = document.getElementById('mplano-err');
+  if (!desc) { err.textContent='Informe o que precisa ser feito.'; err.style.display='block'; return; }
+  var list = getPlanos();
+  var now = new Date().toLocaleString('pt-BR');
+  var loja = S.currentUser ? (S.currentUser.loja||'') : '';
+  if (editingPlanoId) {
+    list = list.map(function(p){ return p.id===editingPlanoId ? Object.assign({},p,{desc:desc,responsavel:document.getElementById('plano-resp').value.trim(),prazo:document.getElementById('plano-prazo').value,origem:document.getElementById('plano-origem').value.trim(),obs:document.getElementById('plano-obs').value.trim()}) : p; });
+  } else {
+    list.push({id:genId(),desc:desc,responsavel:document.getElementById('plano-resp').value.trim(),prazo:document.getElementById('plano-prazo').value,origem:document.getElementById('plano-origem').value.trim(),obs:document.getElementById('plano-obs').value.trim(),status:'aberto',loja:loja,criadoEm:now,criadoPor:S.currentUser?S.currentUser.nome:'—'});
+  }
+  savePlanos(list);
+  fecharModalPlano();
+  renderPlanos(planoFiltroAtual);
+  atualizarBadgePlano();
+  showToast('Plano salvo!');
+}
+
+function atualizarStatusPlano(id, novoStatus) {
+  var list = getPlanos().map(function(p){ return p.id===id ? Object.assign({},p,{status:novoStatus, resolvidoEm: novoStatus==='resolvido'?new Date().toLocaleString('pt-BR'):p.resolvidoEm}) : p; });
+  savePlanos(list);
+  renderPlanos(planoFiltroAtual);
+  atualizarBadgePlano();
+}
+
+function filtrarPlanos(filtro, el) {
+  planoFiltroAtual = filtro;
+  document.querySelectorAll('#plano-filter-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
+  if (el) el.classList.add('on');
+  renderPlanos(filtro);
+}
+
+function renderPlanos(filtro) {
+  var lista = getPlanos();
+  var loja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
+  var isAdmin = S.role==='admin'||S.role==='gerencia';
+  if (!isAdmin && loja) lista = lista.filter(function(p){ return (p.loja||'').toLowerCase()===loja; });
+  if (filtro && filtro!=='todos') lista = lista.filter(function(p){ return p.status===filtro; });
+  lista = lista.slice().reverse();
+  var wrap = document.getElementById('plano-lista');
+  if (!wrap) return;
+  if (!lista.length) { wrap.innerHTML='<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Nenhum plano nesta categoria.</div>'; return; }
+  var STATUS_COR = {aberto:'var(--r)',andamento:'var(--am)',resolvido:'var(--g)'};
+  var STATUS_LABEL = {aberto:'🔴 Aberto',andamento:'🟡 Em Andamento',resolvido:'✅ Resolvido'};
+  wrap.innerHTML = lista.map(function(p){
+    var cor = STATUS_COR[p.status]||'var(--t3)';
+    return '<div style="background:#fff;border:1px solid var(--gray2);border-left:4px solid '+cor+';border-radius:12px;padding:16px 18px;box-shadow:var(--sh)">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:14px;font-weight:700;color:var(--t);margin-bottom:4px">'+p.desc+'</div>'
+      +(p.origem?'<div style="font-size:11px;color:var(--t3);margin-bottom:4px">📋 '+p.origem+'</div>':'')
+      +'<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--t2)">'
+      +(p.responsavel?'<span>👤 '+p.responsavel+'</span>':'')
+      +(p.prazo?'<span>📅 '+p.prazo+'</span>':'')
+      +'<span style="color:'+cor+';font-weight:600">'+STATUS_LABEL[p.status]+'</span>'
+      +'</div>'
+      +(p.obs?'<div style="font-size:12px;color:var(--t3);margin-top:6px;padding:6px 10px;background:var(--gray);border-radius:6px">'+p.obs+'</div>':'')
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'
+      +(p.status==='aberto'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'andamento\')">Iniciar</button>':'')
+      +(p.status==='andamento'?'<button class="btn btn-p btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'resolvido\')">Resolver</button>':'')
+      +(p.status==='resolvido'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'aberto\')">Reabrir</button>':'')
+      +'</div>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function atualizarBadgePlano() {
+  var badge = document.getElementById('badge-plano');
+  if (!badge) return;
+  var abertos = getPlanos().filter(function(p){ return p.status==='aberto'; }).length;
+  if (abertos > 0) { badge.style.display='flex'; badge.textContent=abertos; }
+  else { badge.style.display='none'; }
+}
+
+function criarPlanoAuto(checklistNome, itemTexto, justificativa, setor) {
+  var loja = S.currentUser ? (S.currentUser.loja||'') : '';
+  var list = getPlanos();
+  var desc = '['+checklistNome+'] '+itemTexto;
+  list.push({id:genId(),desc:desc,responsavel:'',prazo:'',origem:checklistNome,obs:justificativa||'',status:'aberto',loja:loja,setor:setor||'',criadoEm:new Date().toLocaleString('pt-BR'),criadoPor:S.currentUser?S.currentUser.nome:'—'});
+  savePlanos(list);
+  atualizarBadgePlano();
+}
+
+// ===========================================
+// ASSINATURA DIGITAL
+// ===========================================
+var _assinaturaDrawing = false;
+var _assinaturaCtx = null;
+
+function abrirAssinatura() {
+  var clId = pendingEnviarId;
+  var label = pendingEnviarLabel;
+  if (!clId) return;
+  document.getElementById('modal-enviar').style.display='none';
+  var nomeEl = document.getElementById('assina-nome');
+  if (nomeEl) nomeEl.textContent = label + ' — ' + (document.getElementById('env-pct')||{textContent:''}).textContent;
+  var modal = document.getElementById('modal-assinatura');
+  if (modal) modal.style.display='flex';
+  setTimeout(initAssinaturaCanvas, 100);
+}
+
+function initAssinaturaCanvas() {
+  var canvas = document.getElementById('assinatura-canvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  _assinaturaCtx = ctx;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  function getPos(e) {
+    var r = canvas.getBoundingClientRect();
+    var scaleX = canvas.width / r.width;
+    var scaleY = canvas.height / r.height;
+    var src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
+  }
+  function startDraw(e) { e.preventDefault(); _assinaturaDrawing=true; var p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+  function draw(e) { if (!_assinaturaDrawing) return; e.preventDefault(); var p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+  function stopDraw() { _assinaturaDrawing=false; }
+  canvas.onmousedown=startDraw; canvas.onmousemove=draw; canvas.onmouseup=stopDraw; canvas.onmouseleave=stopDraw;
+  canvas.ontouchstart=startDraw; canvas.ontouchmove=draw; canvas.ontouchend=stopDraw;
+}
+
+function limparAssinatura() {
+  var canvas = document.getElementById('assinatura-canvas');
+  if (canvas && _assinaturaCtx) _assinaturaCtx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+function confirmarComAssinatura() {
+  var canvas = document.getElementById('assinatura-canvas');
+  var assinatura = canvas ? canvas.toDataURL('image/png') : null;
+  document.getElementById('modal-assinatura').style.display='none';
+  confirmarEnviar(assinatura);
+}
+
+// ===========================================
+// WHATSAPP
+// ===========================================
+function enviarWhatsApp() {
+  var numSalvo = localStorage.getItem('cahu360_wp_numero') || '';
+  var num = window.prompt('Número WhatsApp do supervisor (com DDD, sem espaços):\nEx: 11999990000', numSalvo);
+  if (!num) return;
+  num = num.replace(/\D/g,'');
+  localStorage.setItem('cahu360_wp_numero', num);
+  var pendencias = getPendencias();
+  var hoje = new Date().toLocaleDateString('pt-BR');
+  var loja = S.currentUser ? (S.currentUser.loja||'esta loja') : 'esta loja';
+  var msg = '⚠️ *Cahu360 — Checklists Pendentes*\n';
+  msg += '📅 '+hoje+' | 🏪 '+loja+'\n\n';
+  if (pendencias.length) {
+    pendencias.forEach(function(p){ msg += (p.atrasado?'🔴':'🟡')+' '+p.cl.nome+' ('+p.cl.setor+')\n'; });
+  } else {
+    msg += '✅ Todos os checklists foram enviados!';
+  }
+  window.open('https://wa.me/55'+num+'?text='+encodeURIComponent(msg), '_blank');
 }
 
 function exportarPDF(tipo) {
