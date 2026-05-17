@@ -25,7 +25,7 @@
 <!-- PAINEL DE ALERTAS DE PENDÊNCIAS -->
 <div id="modal-pendentes" class="modal-bg" style="display:none">
   <div class="modal-box" style="width:500px;max-height:80vh;overflow-y:auto">
-    <div class="modal-title" style="color:#c0392b">⚠️ Checklists Pendentes</div>
+    <div class="modal-title" id="pendentes-titulo" style="color:#c0392b">⚠️ Checklists Pendentes</div>
     <div id="pendentes-lista" style="display:flex;flex-direction:column;gap:10px;margin:12px 0"></div>
     <div class="btn-row"><button class="btn btn-s" onclick="document.getElementById('modal-pendentes').style.display='none'">Fechar</button></div>
   </div>
@@ -79,7 +79,7 @@
       <div class="sb-item" id="nav-alertas" style="display:none;position:relative" onclick="abrirPendentes()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         Alertas
-        <span id="badge-alertas" style="display:none;position:absolute;top:6px;right:10px;background:#c0392b;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">0</span>
+        <span id="badge-alertas" style="display:none;position:absolute;top:6px;right:10px;background:#c0392b;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;align-items:center;justify-content:center;line-height:1">0</span>
       </div>
 
       <div class="sb-sec" id="sb-adm-sec" style="display:none">Administração</div>

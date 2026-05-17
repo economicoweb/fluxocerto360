@@ -407,9 +407,12 @@ function abrirPendentes() {
   var pendencias = getPendencias();
   var lista = document.getElementById('pendentes-lista');
   if (!lista) return;
+  var titulo = document.getElementById('pendentes-titulo');
   if (!pendencias.length) {
-    lista.innerHTML = '<div style="text-align:center;padding:20px;color:var(--g);font-weight:600">✅ Todos os checklists obrigatórios de hoje foram enviados!</div>';
+    if (titulo) { titulo.textContent = '✅ Checklists em Dia'; titulo.style.color = 'var(--g)'; }
+    lista.innerHTML = '<div style="text-align:center;padding:20px;color:var(--g);font-weight:600">Todos os checklists obrigatórios de hoje foram enviados!</div>';
   } else {
+    if (titulo) { titulo.textContent = '⚠️ Checklists Pendentes'; titulo.style.color = '#c0392b'; }
     lista.innerHTML = pendencias.map(function(p){
       var cor = p.atrasado ? '#c0392b' : '#e67e22';
       var icone = p.atrasado ? '🔴' : '🟡';
