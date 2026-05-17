@@ -1625,8 +1625,13 @@ function confirmarEnviar(assinatura) {
     assinatura:assinatura||null
   };
   var lista = getAllResultados();
-  lista.push(res);
-  saveResultados(lista);
+  // Salva sem assinatura no cache local (base64 enorme estoura localStorage)
+  var resParaCache = Object.assign({}, res, {assinatura: null});
+  lista.push(resParaCache);
+  S.resultadosCache = lista;
+  localStorage.setItem(RESKEY, JSON.stringify(lista));
+  // Salva com assinatura apenas no Firebase
+  db.collection('resultados').doc(res.id).set(res).catch(function(){});
   // Auto-criar planos de ação para itens Sim/Não com resposta "Não"
   snapshot.forEach(function(item) {
     if (item.tipo==='simNao' && item.resposta==='nao') {
@@ -1634,8 +1639,12 @@ function confirmarEnviar(assinatura) {
     }
   });
   addHist('Checklist','"'+label+'" enviado ('+pct+'%)','Geral',pct===100?'st-ok':'st-warn',pct+'%');
+  // Re-renderiza o bloco para mostrar o banner "Checklist já enviado hoje!"
+  var block = document.getElementById('cl-block-'+clId);
+  if (block) block.innerHTML = buildCLBlock(cl);
+  updateCLProg(cl);
   updateDash();
-  showToast(pct===100 ? 'Checklist enviado com sucesso!' : 'Checklist enviado com '+pct+'% concluido');
+  showToast(pct===100 ? 'Checklist enviado com sucesso!' : 'Checklist enviado com '+pct+'% concluído');
 }
 
 function cancelarEnviar() {
