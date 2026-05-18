@@ -2166,87 +2166,169 @@ function verDetalhe(idx) {
   var resultados = getResultados();
   var r = resultados[idx];
   if (!r) return;
-  // Build global foto list for navigation
   var todasFotos = [];
   (r.itens||[]).forEach(function(item){
-    if (item.fotoAntes) todasFotos.push({src:item.fotoAntes, label:'ANTES - '+item.texto});
-    if (item.fotoDepois) todasFotos.push({src:item.fotoDepois, label:'DEPOIS - '+item.texto});
+    if (item.fotoAntes) todasFotos.push({src:item.fotoAntes, label:'ANTES — '+item.texto});
+    if (item.fotoDepois) todasFotos.push({src:item.fotoDepois, label:'DEPOIS — '+item.texto});
   });
+  fotoFullList = todasFotos;
+
+  // ── Cabeçalho ──
   document.getElementById('det-titulo').textContent = r.checklistNome;
-  document.getElementById('det-meta').textContent = r.operador+' · '+r.setor+' · '+r.dataHora+' · '+r.pct+'% concluído';
-  // Show photo count
+  var badge = document.getElementById('det-badge');
+  if (r.reprovado) { badge.textContent='🚨 REPROVADO'; badge.className='st st-err'; }
+  else if (r.pct===100) { badge.textContent='✅ APROVADO'; badge.className='st st-ok'; }
+  else { badge.textContent='⚠️ '+r.pct+'% concluído'; badge.className='st st-warn'; }
+
+  // ── Meta ──
+  var metaItems = [
+    r.loja ? '🏪 '+r.loja : '',
+    '👤 '+r.operador,
+    '📂 '+r.setor,
+    '🕐 '+r.dataHora
+  ].filter(Boolean);
+  document.getElementById('det-meta').innerHTML = metaItems.map(function(m){
+    return '<span style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--gray2)">'+m+'</span>';
+  }).join('');
+
+  // ── KPIs ──
+  var naoConformIds = (r.itens||[]).filter(function(it){ return it.tipo==='simNao'&&it.resposta==='nao'; }).length;
+  var naoFeitos = (r.itens||[]).filter(function(it){ return it.tipo!=='planilha'&&!it.feito; }).length;
   var fotoCount = todasFotos.length;
-  document.getElementById('det-foto-count').textContent = fotoCount > 0 ? fotoCount+' foto(s) - clique para ampliar' : '';
-  document.getElementById('det-foto-count').style.display = fotoCount > 0 ? 'block' : 'none';
-  document.getElementById('det-itens').innerHTML = (r.itens||[]).map(function(item, i){
-    var fotoHtml = '';
-    if (item.fotoAntes || item.fotoDepois) {
-      var fotoIdx = todasFotos.findIndex(function(f){return f.label && f.label.indexOf(item.texto)>=0;});
-      if (item.fotoAntes) {
-        var fi = todasFotos.findIndex(function(f){return f.src===item.fotoAntes;});
-        fotoHtml += '<div style="margin-top:8px">'
-          +'<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:4px;letter-spacing:.5px">Antes</div>'
-          +'<img src="'+item.fotoAntes+'" onclick="abrirFotoFull('+JSON.stringify(todasFotos).replace(/"/g,"'")+','+fi+')" '
-          +'style="max-width:100%;max-height:160px;border-radius:8px;border:2px solid var(--gray2);cursor:pointer;object-fit:cover" title="Clique para ampliar"/>'
+  var pctColor = r.pct===100?'var(--g)':r.pct>=50?'var(--am)':'var(--r)';
+  document.getElementById('det-kpis').innerHTML = [
+    {val: r.pct+'%', label:'Conformidade', color: pctColor, bg: r.pct===100?'var(--g3)':r.pct>=50?'var(--am2)':'var(--r2)'},
+    {val: r.feitos+'/'+r.total, label:'Itens Concluídos', color:'var(--bl)', bg:'var(--bl2)'},
+    {val: fotoCount, label:'Fotos Registradas', color:'var(--t2)', bg:'var(--gray)'},
+    {val: naoConformIds+naoFeitos, label:'Não Conformes', color: (naoConformIds+naoFeitos)>0?'var(--r)':'var(--g)', bg:(naoConformIds+naoFeitos)>0?'var(--r2)':'var(--g3)'}
+  ].map(function(k){
+    return '<div style="background:'+k.bg+';border-radius:12px;padding:16px 14px;text-align:center">'
+      +'<div style="font-size:24px;font-weight:800;color:'+k.color+';font-family:\'Syne\',sans-serif">'+k.val+'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:var(--t2);margin-top:4px;text-transform:uppercase;letter-spacing:.4px">'+k.label+'</div>'
+      +'</div>';
+  }).join('');
+
+  // ── Barra de progresso ──
+  document.getElementById('det-pct-label').textContent = r.pct+'%';
+  document.getElementById('det-pct-label').style.color = pctColor;
+  document.getElementById('det-prog-bar').style.width = r.pct+'%';
+  document.getElementById('det-prog-bar').style.background = pctColor;
+  document.getElementById('det-itens-label').textContent = r.feitos+' de '+r.total+' itens concluídos';
+  document.getElementById('det-data-label').textContent = r.dataHora;
+
+  // ── Não-conformidades ──
+  var nconformItens = (r.itens||[]).filter(function(it){
+    return (it.tipo==='simNao'&&it.resposta==='nao') || (it.tipo!=='planilha'&&it.tipo!=='simNao'&&!it.feito);
+  });
+  var nconformEl = document.getElementById('det-nconform');
+  if (nconformItens.length) {
+    nconformEl.innerHTML = '<div style="background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:18px;box-shadow:var(--sh);border-left:4px solid var(--r)">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--r);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">⚠ Não Conformidades ('+nconformItens.length+')</div>'
+      +nconformItens.map(function(it){
+        var justHtml = it.justificativa ? '<div style="margin-top:6px;padding:8px 12px;background:var(--r2);border-radius:8px;font-size:12px;color:var(--r)">📋 '+it.justificativa+'</div>' : '';
+        return '<div style="padding:10px 12px;border-radius:8px;background:var(--r2);border:1px solid #fac5c0;margin-bottom:8px">'
+          +'<div style="font-size:13px;font-weight:600;color:var(--r)">'+it.texto+'</div>'
+          +(it.obs?'<div style="font-size:11px;color:var(--r);margin-top:2px;opacity:.7">'+it.obs+'</div>':'')
+          +justHtml
           +'</div>';
-      }
-      if (item.fotoDepois) {
-        var fj = todasFotos.findIndex(function(f){return f.src===item.fotoDepois;});
-        fotoHtml += '<div style="margin-top:8px">'
-          +'<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:4px;letter-spacing:.5px">Depois</div>'
-          +'<img src="'+item.fotoDepois+'" onclick="abrirFotoFull('+JSON.stringify(todasFotos).replace(/"/g,"'")+','+fj+')" '
-          +'style="max-width:100%;max-height:160px;border-radius:8px;border:2px solid var(--gray2);cursor:pointer;object-fit:cover" title="Clique para ampliar"/>'
-          +'</div>';
-      }
-    } else if (item.foto && item.foto !== 'none') {
-      fotoHtml = '<div style="font-size:11px;color:var(--am);margin-top:4px;padding:6px 10px;background:var(--am2);border-radius:6px">📷 Foto obrigatória não enviada</div>';
-    }
-    var tipo = item.tipo || 'checkbox';
-    var respostaHtml = '';
-    if (tipo === 'simNao') {
-      var snL=item.resposta==='sim'?'✓ Sim':item.resposta==='nao'?'✗ Não':'—';
-      var snC=item.resposta==='sim'?'var(--g)':item.resposta==='nao'?'var(--r)':'var(--t3)';
-      respostaHtml='<div style="margin-top:5px;font-size:12px;font-weight:700;color:'+snC+'">Resposta: '+snL+'</div>';
-    } else if (tipo === 'nota') {
-      var nv=parseInt(item.resposta)||0;
-      respostaHtml='<div style="display:flex;align-items:center;gap:5px;margin-top:5px"><span style="font-size:11px;color:var(--t3)">Nota:</span>'
-        +[1,2,3,4,5].map(function(v){return '<span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:11px;font-weight:700;background:'+(v<=nv?'var(--dk)':'var(--gray2)')+';color:'+(v<=nv?'#111':'var(--t3)')+'">'+v+'</span>';}).join('')+'</div>';
-    } else if (tipo === 'texto' && item.resposta) {
-      respostaHtml='<div style="margin-top:5px;padding:6px 10px;background:var(--gray);border-radius:6px;font-size:12px;color:var(--t2)">'+item.resposta+'</div>';
-    } else if (tipo === 'planilha' && item.produtos && item.produtos.length) {
-      respostaHtml='<div style="margin-top:8px;overflow-x:auto">'
-        +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
-        +'<thead><tr style="background:var(--gray)">'
-        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Código</th>'
-        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Descrição</th>'
-        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Setor</th>'
-        +'<th style="padding:5px 7px;text-align:center;font-weight:600;color:var(--t2)">Qtd</th>'
-        +'</tr></thead><tbody>'
-        +item.produtos.map(function(p){
-          return '<tr style="border-bottom:1px solid var(--gray2)">'
-            +'<td style="padding:5px 7px;color:var(--t2);font-size:11px">'+p.codigo+'</td>'
-            +'<td style="padding:5px 7px;color:var(--t)">'+p.descricao+'</td>'
-            +'<td style="padding:5px 7px;color:var(--t2)">'+(p.setor||'—')+'</td>'
-            +'<td style="padding:5px 7px;text-align:center;font-weight:700;color:'+(p.quantidade?'var(--g)':'var(--t3)')+'">'+( p.quantidade||'—')+'</td>'
+      }).join('')
+      +'</div>';
+  } else {
+    nconformEl.innerHTML = '';
+  }
+  // ── Itens do checklist (exceto planilha) ──
+  var itensNormais = (r.itens||[]).filter(function(it){ return (it.tipo||'checkbox') !== 'planilha'; });
+  var itensPlanilha = (r.itens||[]).filter(function(it){ return it.tipo === 'planilha'; });
+  var fotosDosItens = todasFotos;
+
+  document.getElementById('det-itens').innerHTML = itensNormais.length
+    ? '<div style="background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:18px;box-shadow:var(--sh)">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">☑ Itens do Checklist</div>'
+      +itensNormais.map(function(item){
+          var tipo = item.tipo || 'checkbox';
+          var fotoHtml = '';
+          if (item.fotoAntes || item.fotoDepois) {
+            if (item.fotoAntes) {
+              var fi = fotosDosItens.findIndex(function(f){return f.src===item.fotoAntes;});
+              fotoHtml += '<img src="'+item.fotoAntes+'" onclick="abrirFotoFull(fotoFullList,'+fi+')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--gray2);margin-top:8px;margin-right:6px" title="ANTES"/>';
+            }
+            if (item.fotoDepois) {
+              var fj = fotosDosItens.findIndex(function(f){return f.src===item.fotoDepois;});
+              fotoHtml += '<img src="'+item.fotoDepois+'" onclick="abrirFotoFull(fotoFullList,'+fj+')" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--gray2);margin-top:8px" title="DEPOIS"/>';
+            }
+            fotoHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px">'+fotoHtml+'</div>';
+          } else if (item.foto && item.foto !== 'none') {
+            fotoHtml = '<div style="font-size:11px;color:var(--am);margin-top:6px;padding:5px 10px;background:var(--am2);border-radius:6px;display:inline-block">📷 Foto não enviada</div>';
+          }
+          var respostaHtml = '';
+          if (tipo==='simNao') {
+            var snL=item.resposta==='sim'?'✓ Sim':item.resposta==='nao'?'✗ Não':'—';
+            var snC=item.resposta==='sim'?'var(--g)':item.resposta==='nao'?'var(--r)':'var(--t3)';
+            respostaHtml='<span style="font-size:12px;font-weight:700;color:'+snC+'"> · '+snL+'</span>';
+          } else if (tipo==='nota') {
+            var nv=parseInt(item.resposta)||0;
+            respostaHtml='<span style="font-size:12px;font-weight:700;color:var(--dk)"> · Nota: '+nv+'/5</span>';
+          } else if (tipo==='texto'&&item.resposta) {
+            respostaHtml='<div style="margin-top:5px;padding:6px 10px;background:var(--gray);border-radius:6px;font-size:12px;color:var(--t2)">'+item.resposta+'</div>';
+          }
+          var bg = !item.feito?'#fff':(tipo==='simNao'&&item.resposta==='nao')?'var(--r2)':'var(--g3)';
+          var icon = tipo==='simNao'?(item.resposta==='sim'?'✅':item.resposta==='nao'?'❌':'⬜'):(item.feito?'✅':'⬜');
+          var txtS = tipo==='checkbox'&&item.feito?'text-decoration:line-through;color:var(--t3)':'color:var(--t)';
+          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;background:'+bg+';border:1px solid var(--gray2);margin-bottom:8px">'
+            +'<span style="font-size:17px;flex-shrink:0;margin-top:1px">'+icon+'</span>'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:13px;font-weight:600;'+txtS+'">'+item.texto
+            +respostaHtml
+            +(item.critico?'<span style="font-size:10px;font-weight:800;color:var(--r);background:var(--r2);padding:1px 6px;border-radius:20px;border:1px solid var(--r);margin-left:6px">⚠ CRÍTICO</span>':'')
+            +'</div>'
+            +(item.obs?'<div style="font-size:11px;color:var(--t3);margin-top:2px">'+item.obs+'</div>':'')
+            +(item.justificativa?'<div style="margin-top:6px;padding:6px 10px;background:var(--r2);border-radius:6px;font-size:12px;color:var(--r)">📋 '+item.justificativa+'</div>':'')
+            +fotoHtml
+            +'</div></div>';
+        }).join('')
+      +'</div>'
+    : '';
+
+  // ── Contagem de Estoque (planilha) ──
+  document.getElementById('det-fotos').innerHTML = itensPlanilha.map(function(item){
+    if (!item.produtos || !item.produtos.length) return '';
+    var preenchidos = item.produtos.filter(function(p){ return p.quantidade && p.quantidade !== ''; }).length;
+    var totalP = item.produtos.length;
+    return '<div style="background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:18px;box-shadow:var(--sh)">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.6px">📊 '+item.texto+'</div>'
+      +'<span style="font-size:12px;font-weight:700;color:var(--bl);background:var(--bl2);padding:3px 10px;border-radius:20px">'+preenchidos+'/'+totalP+' preenchidos</span>'
+      +'</div>'
+      +'<div style="overflow-x:auto">'
+      +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
+      +'<thead><tr style="border-bottom:2px solid var(--gray2)">'
+      +'<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px">Código</th>'
+      +'<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px">Descrição</th>'
+      +'<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px">Setor</th>'
+      +'<th style="padding:8px 10px;text-align:center;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px">Qtd</th>'
+      +'</tr></thead><tbody>'
+      +item.produtos.map(function(p, pi){
+          var semQtd = !p.quantidade || p.quantidade === '';
+          return '<tr style="border-bottom:1px solid var(--gray2);background:'+(pi%2===0?'#fff':'#fafafa')+'">'
+            +'<td style="padding:9px 10px;font-size:12px;color:var(--t3);font-family:monospace">'+p.codigo+'</td>'
+            +'<td style="padding:9px 10px;font-weight:500;color:var(--t)">'+p.descricao+'</td>'
+            +'<td style="padding:9px 10px;font-size:12px;color:var(--t2)">'+( p.setor||'—')+'</td>'
+            +'<td style="padding:9px 10px;text-align:center;font-size:15px;font-weight:800;color:'+(semQtd?'var(--t3)':'var(--g)')+'">'+( semQtd?'—':p.quantidade)+'</td>'
             +'</tr>';
         }).join('')
-        +'</tbody></table></div>';
-    }
-    var itemDoneBg = !item.feito?'#fff':(tipo==='simNao'&&item.resposta==='nao')?'var(--r2)':'var(--g3)';
-    var itemIcon = tipo==='simNao'?(item.resposta==='sim'?'✅':item.resposta==='nao'?'❌':'⬜'):(item.feito?'✅':'⬜');
-    var txtDec = tipo==='checkbox'&&item.feito?'text-decoration:line-through;color:var(--t3)':'color:var(--t)';
-    return '<div style="padding:12px 14px;border-radius:10px;margin-bottom:8px;border:1px solid var(--gray2);background:'+itemDoneBg+'">'
-      +'<div style="display:flex;align-items:flex-start;gap:10px">'
-      +'<span style="font-size:18px;margin-top:1px;flex-shrink:0">'+itemIcon+'</span>'
-      +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:13px;font-weight:600;'+txtDec+'">'+item.texto+'</div>'
-      +(item.obs ? '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+item.obs+'</div>' : '')
-      +respostaHtml
-      +(item.justificativa ? '<div style="margin-top:5px;padding:6px 10px;background:var(--r2);border-radius:6px;font-size:12px;color:var(--r)">📋 '+item.justificativa+'</div>' : '')
-      +fotoHtml
-      +'</div></div></div>';
+      +'</tbody></table></div></div>';
   }).join('');
-  document.getElementById('modal-det').style.display='flex';
+
+  // ── Assinatura ──
+  document.getElementById('det-assinatura').innerHTML = r.assinatura
+    ? '<div style="background:#fff;border-radius:12px;padding:18px 20px;box-shadow:var(--sh)">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">✍ Assinatura Digital</div>'
+      +'<img src="'+r.assinatura+'" style="max-width:280px;border:1px solid var(--gray2);border-radius:8px;background:#fff"/>'
+      +'</div>'
+    : '';
+
+  document.getElementById('modal-det').style.display='block';
+  document.getElementById('modal-det').scrollTop = 0;
 }
 
 // ── Fotos pendentes ──

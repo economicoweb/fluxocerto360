@@ -1004,14 +1004,42 @@
   </div>
 </div>
 
-<!-- MODAL DETALHE RESULTADO -->
-<div class="modal-bg" id="modal-det">
-  <div class="modal-box" style="width:520px">
-    <div class="modal-title" id="det-titulo"></div>
-    <div style="font-size:12px;color:var(--t3);margin-bottom:6px" id="det-meta"></div>
-    <div id="det-foto-count" style="display:none;font-size:12px;color:var(--bl);background:var(--bl2);padding:6px 12px;border-radius:20px;margin-bottom:14px;cursor:pointer" onclick="abrirFotoFull(fotoFullList,0)">📷 0 fotos</div>
+<!-- PAINEL DETALHE RESULTADO (tela cheia) -->
+<div id="modal-det" style="display:none;position:fixed;inset:0;z-index:200;background:#eef1f5;overflow-y:auto">
+  <!-- Barra superior fixa -->
+  <div style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--gray2);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <button onclick="document.getElementById('modal-det').style.display='none'" class="btn btn-s btn-sm">← Voltar</button>
+    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--t);flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="det-titulo"></div>
+    <span id="det-badge" class="st" style="white-space:nowrap;font-size:12px"></span>
+  </div>
+  <!-- Conteúdo -->
+  <div style="max-width:860px;margin:0 auto;padding:24px 16px 40px">
+    <!-- Meta -->
+    <div id="det-meta" style="font-size:13px;color:var(--t2);margin-bottom:18px;display:flex;flex-wrap:wrap;gap:6px 16px"></div>
+    <!-- KPIs -->
+    <div id="det-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px"></div>
+    <!-- Barra de progresso -->
+    <div style="background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:18px;box-shadow:var(--sh)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px">Conformidade</span>
+        <span id="det-pct-label" style="font-size:20px;font-weight:800;color:var(--t)"></span>
+      </div>
+      <div style="height:10px;background:var(--gray2);border-radius:5px;overflow:hidden">
+        <div id="det-prog-bar" style="height:100%;border-radius:5px;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--t3)">
+        <span id="det-itens-label"></span>
+        <span id="det-data-label"></span>
+      </div>
+    </div>
+    <!-- Não-conformidades -->
+    <div id="det-nconform"></div>
+    <!-- Itens normais -->
     <div id="det-itens"></div>
-    <div class="btn-row"><button class="btn btn-s" onclick="document.getElementById('modal-det').style.display='none'">Fechar</button></div>
+    <!-- Fotos -->
+    <div id="det-fotos"></div>
+    <!-- Assinatura -->
+    <div id="det-assinatura"></div>
   </div>
 </div>
 
