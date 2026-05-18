@@ -698,6 +698,7 @@ function doLogout() {
   Object.values(S.dashCharts).forEach(function(c){try{c.destroy();}catch(e){}});
   Object.values(S.relCharts).forEach(function(c){try{c.destroy();}catch(e){}});
   S = {role:'',currentUser:null,checkState:{},invItems:[],perdaItems:[],historico:[],dashCharts:{},relCharts:{}};
+  _planosCache = null;
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});
   document.getElementById('panel-dashboard').classList.add('active');
 }
@@ -3829,14 +3830,21 @@ function exportarRelatorioSupervisor() {
 var editingPlanoId = null;
 var planoFiltroAtual = 'aberto';
 
-function getPlanos() { try { return JSON.parse(localStorage.getItem(PLANO_KEY)||'[]'); } catch(e){ return []; } }
+var _planosCache = null;
+function getPlanos() {
+  if (_planosCache) return _planosCache;
+  try { _planosCache = JSON.parse(localStorage.getItem(PLANO_KEY)||'[]'); } catch(e){ _planosCache = []; }
+  return _planosCache;
+}
 function savePlanos(list) {
+  _planosCache = list;
   try { localStorage.setItem(PLANO_KEY, JSON.stringify(list)); } catch(e) {}
   list.forEach(function(p){ db.collection('planos').doc(p.id).set(p).catch(function(){}); });
 }
 function loadPlanosFromFirebase(cb) {
   db.collection('planos').get().then(function(snap){
     var list = snap.docs.map(function(d){ return d.data(); });
+    _planosCache = list;
     try { localStorage.setItem(PLANO_KEY, JSON.stringify(list)); } catch(e) {}
     if (cb) cb();
   }).catch(function(){ if (cb) cb(); });
