@@ -1787,7 +1787,7 @@ function confirmarEnviar(assinatura) {
   var resParaCache = Object.assign({}, res, {assinatura: null});
   lista.push(resParaCache);
   S.resultadosCache = lista;
-  localStorage.setItem(RESKEY, JSON.stringify(lista));
+  try { localStorage.setItem(RESKEY, JSON.stringify(lista)); } catch(e) {}
   // Salva com assinatura apenas no Firebase
   db.collection('resultados').doc(res.id).set(res).catch(function(err){
     console.error('Erro ao salvar resultado no Firebase:', err);
