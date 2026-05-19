@@ -2741,9 +2741,23 @@ function renderCentralPlanos() {
       +'</div>'
       +ini+mensagemTag+concl
       +'</div>'
-      +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+'</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">'
+      +'<div style="font-size:10px;color:var(--t3)">Criado em '+p.criadoEm+' por '+p.criadoPor+'</div>'
+      +'<button onclick="excluirPlanoCentral(\''+p.id+'\')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--r);padding:2px 6px;border-radius:4px;opacity:.7" title="Excluir plano">🗑 Excluir</button>'
+      +'</div>'
       +'</div>';
   }).join('');
+}
+
+function excluirPlanoCentral(planoId) {
+  var p = getPlanos().find(function(x){ return x.id === planoId; });
+  if (!p) return;
+  if (!confirm('Excluir o plano de ação "' + p.desc + '"?\nEssa ação não pode ser desfeita.')) return;
+  var lista = getPlanos().filter(function(x){ return x.id !== planoId; });
+  savePlanos(lista);
+  if (db) db.collection('planos').doc(planoId).delete().catch(function(){});
+  renderCentralPlanos();
+  showToast('Plano excluído.');
 }
 
 function limparFiltrosCentral() {
