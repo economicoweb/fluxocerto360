@@ -2603,12 +2603,16 @@ var centralTabAtual = 'checklist';
 
 function switchCentralTab(tab, btn) {
   centralTabAtual = tab;
-  ['checklist','inventario','perdas'].forEach(function(t){
+  ['checklist','inventario','perdas','plano'].forEach(function(t){
     var el = document.getElementById('central-tab-'+t);
     if (el) el.style.display = t===tab ? 'block' : 'none';
   });
   document.querySelectorAll('#central-tabs .tab').forEach(function(t){t.classList.remove('on');});
   if (btn) btn.classList.add('on');
+  if (tab === 'plano') {
+    loadPlanosFromFirebase(function(){ renderCentralPlanos(); });
+    return;
+  }
   renderCentralAtual();
 }
 
@@ -2630,6 +2634,65 @@ function renderCentralAtual() {
     document.getElementById('cperd-maior').textContent = 'R$ '+maior.total.toFixed(2);
     document.getElementById('cperd-ops').textContent = S.currentUser ? 1 : 0;
   }
+}
+
+function renderCentralPlanos() {
+  var lista = getPlanos().slice().sort(function(a, b){
+    return (b.criadoEm || '') > (a.criadoEm || '') ? 1 : -1;
+  });
+  var fs = (document.getElementById('cf-setor')||{}).value||'';
+  var fo = (document.getElementById('cf-op')||{}).value||'';
+  var dtIni = (document.getElementById('cf-dt-ini')||{}).value||'';
+  var dtFim = (document.getElementById('cf-dt-fim')||{}).value||'';
+  if (fo) lista = lista.filter(function(p){ return (p.criadoPor||'').toLowerCase().indexOf(fo.toLowerCase())>=0 || (p.iniciadoPor&&p.iniciadoPor.nome||'').toLowerCase().indexOf(fo.toLowerCase())>=0; });
+  if (fs) lista = lista.filter(function(p){ return (p.setor||'').toLowerCase().indexOf(fs.toLowerCase())>=0; });
+
+  // Métricas
+  var tot = lista.length;
+  var res = lista.filter(function(p){return p.status==='resolvido';}).length;
+  var and = lista.filter(function(p){return p.status==='andamento';}).length;
+  var abe = lista.filter(function(p){return p.status==='aberto';}).length;
+  var el = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; };
+  el('cplano-total', tot); el('cplano-resolvidos', res); el('cplano-andamento', and); el('cplano-abertos', abe);
+
+  var wrap = document.getElementById('cplano-lista');
+  if (!wrap) return;
+  if (!lista.length) { wrap.innerHTML='<div style="padding:32px;text-align:center;color:var(--t3);font-size:13px">Nenhum plano de ação registrado.</div>'; return; }
+
+  var COR = {aberto:'var(--r)',andamento:'var(--am)',resolvido:'var(--g)'};
+  var LABEL = {aberto:'🔴 Aberto',andamento:'🟡 Em Andamento',resolvido:'✅ Resolvido'};
+  var PERFIL = {operator:'Operador',prevencao:'Prevenção',gerencia:'Gerência',admin:'Administrador'};
+
+  wrap.innerHTML = lista.map(function(p){
+    var cor = COR[p.status]||'var(--t3)';
+    var ini = p.iniciadoPor ? ('<div style="font-size:12px;color:var(--t2);margin-top:4px">▶ Iniciado por <strong>'+p.iniciadoPor.nome+'</strong>'+(p.iniciadoPor.perfil?' ('+PERFIL[p.iniciadoPor.perfil]||p.iniciadoPor.perfil+')':'')+(p.iniciadoPor.em?' — '+p.iniciadoPor.em:'')+'</div>') : '';
+    var loja = p.loja ? '<span style="background:var(--am-bg,#fff8e1);color:#b45309;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600;margin-right:6px">🏪 '+p.loja+'</span>' : '';
+    var concl = '';
+    if (p.conclusao && p.conclusao.texto) {
+      concl = '<div style="margin-top:10px;padding:10px 12px;background:#f0fdf4;border-left:3px solid var(--g);border-radius:6px">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--g);margin-bottom:4px">✅ Conclusão</div>'
+        +'<div style="font-size:12px;color:var(--t)">'+p.conclusao.texto+'</div>'
+        +(p.conclusao.foto ? '<div style="margin-top:8px"><img src="'+p.conclusao.foto+'" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:cover;border:1px solid var(--gray2)"/></div>' : '')
+        +'</div>';
+    }
+    return '<div style="border:1px solid var(--gray2);border-left:4px solid '+cor+';border-radius:10px;padding:14px 16px;margin-bottom:10px;background:#fff">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+loja+'<span style="font-size:13px;font-weight:700;color:var(--t)">'+p.desc+'</span></div>'
+      +(p.origem?'<div style="font-size:11px;color:var(--t3)">📋 '+p.origem+'</div>':'')
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--t2);margin-top:4px">'
+      +'<span style="color:'+cor+';font-weight:600">'+LABEL[p.status]+'</span>'
+      +(p.responsavel?'<span>👤 '+p.responsavel+'</span>':'')
+      +(p.prazo?'<span>📅 Prazo: '+p.prazo+'</span>':'')
+      +(p.resolvidoEm?'<span>✅ '+p.resolvidoEm+'</span>':'')
+      +'</div>'
+      +ini
+      +concl
+      +'</div>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+'</div>'
+      +'</div>';
+  }).join('');
 }
 
 function limparFiltrosCentral() {
@@ -4078,21 +4141,44 @@ function salvarPlano() {
 }
 
 var _pendingStatusPlano = null; // {id, novoStatus}
+var _pendingConclusaoFoto = null; // base64 string
 
 function atualizarStatusPlano(id, novoStatus) {
   var plano = getPlanos().find(function(p){ return p.id === id; });
   if (!plano) return;
   _pendingStatusPlano = {id: id, novoStatus: novoStatus};
-  var iconMap = {andamento:'▶', resolvido:'✅', aberto:'🔄'};
-  var tituloMap = {andamento:'Iniciar este plano?', resolvido:'Marcar como resolvido?', aberto:'Reabrir este plano?'};
+
+  if (novoStatus === 'resolvido') {
+    // Abre modal de conclusão separado
+    document.getElementById('mconcl-desc').textContent = plano.desc;
+    document.getElementById('mconcl-texto').value = '';
+    var fi = document.getElementById('mconcl-foto'); if (fi) fi.value = '';
+    document.getElementById('mconcl-preview').style.display = 'none';
+    document.getElementById('mconcl-err').style.display = 'none';
+    _pendingConclusaoFoto = null;
+    document.getElementById('modal-conclusao-plano').style.display = 'flex';
+    return;
+  }
+
+  var iconMap = {andamento:'▶', aberto:'🔄'};
+  var tituloMap = {andamento:'Iniciar este plano?', aberto:'Reabrir este plano?'};
   var descMap = {
     andamento: 'O plano passará para <strong>Em Andamento</strong>.',
-    resolvido: 'O plano será marcado como <strong>Resolvido</strong>.',
     aberto: 'O plano voltará para <strong>Aberto</strong>.'
   };
   document.getElementById('mcp-icon').textContent = iconMap[novoStatus] || '?';
   document.getElementById('mcp-titulo').textContent = tituloMap[novoStatus] || 'Confirmar?';
   document.getElementById('mcp-desc').innerHTML = '<strong style="font-size:13px;display:block;margin-bottom:4px">'+plano.desc+'</strong>' + (descMap[novoStatus]||'');
+
+  var iniciarFields = document.getElementById('mcp-iniciar-fields');
+  if (iniciarFields) iniciarFields.style.display = novoStatus === 'andamento' ? 'block' : 'none';
+  // pré-preenche com o usuário atual
+  if (novoStatus === 'andamento') {
+    var nomeEl = document.getElementById('mcp-iniciar-nome');
+    var perfilEl = document.getElementById('mcp-iniciar-perfil');
+    if (nomeEl) nomeEl.value = S.currentUser ? (S.currentUser.nome || '') : '';
+    if (perfilEl) perfilEl.value = S.currentUser ? (S.currentUser.perfil || 'operator') : 'operator';
+  }
   document.getElementById('modal-confirm-plano').style.display = 'flex';
 }
 
@@ -4103,28 +4189,90 @@ function confirmarStatusPlano() {
   var novoStatus = _pendingStatusPlano.novoStatus;
   _pendingStatusPlano = null;
 
+  var extras = {};
+  if (novoStatus === 'andamento') {
+    var nome = (document.getElementById('mcp-iniciar-nome')||{}).value || '';
+    var perfil = (document.getElementById('mcp-iniciar-perfil')||{}).value || '';
+    if (nome) extras.iniciadoPor = { nome: nome.trim(), perfil: perfil, em: new Date().toLocaleString('pt-BR') };
+  }
+
   var updatedPlano = null;
   var list = getPlanos().map(function(p){
     if (p.id !== id) return p;
-    updatedPlano = Object.assign({}, p, {
-      status: novoStatus,
-      resolvidoEm: novoStatus==='resolvido' ? new Date().toLocaleString('pt-BR') : p.resolvidoEm
-    });
+    updatedPlano = Object.assign({}, p, extras, { status: novoStatus });
     return updatedPlano;
   });
   if (!updatedPlano) return;
 
   _planosCache = list;
   try { localStorage.setItem(PLANO_KEY, JSON.stringify(list)); } catch(e) {}
-
   db.collection('planos').doc(id).set(updatedPlano).then(function(){
-    var msgs = {andamento:'▶ Plano em andamento!', resolvido:'✅ Plano resolvido!', aberto:'🔄 Plano reaberto!'};
+    var msgs = {andamento:'▶ Plano em andamento!', aberto:'🔄 Plano reaberto!'};
     showToast(msgs[novoStatus] || 'Status atualizado');
   }).catch(function(err){
     showToast('⚠ Firebase: ' + (err && err.code ? err.code : 'erro ao salvar'));
     console.error('Firebase plano erro:', err);
   });
+  renderPlanos(planoFiltroAtual);
+  atualizarBadgePlano();
+}
 
+function onConcluFotoChange(input) {
+  var file = input.files[0];
+  if (!file) { _pendingConclusaoFoto = null; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var maxSize = 800;
+      var ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      _pendingConclusaoFoto = canvas.toDataURL('image/jpeg', 0.72);
+      var prev = document.getElementById('mconcl-preview');
+      var prevImg = document.getElementById('mconcl-preview-img');
+      if (prev && prevImg) { prevImg.src = _pendingConclusaoFoto; prev.style.display = 'block'; }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function confirmarConclusaoPlano() {
+  var texto = (document.getElementById('mconcl-texto')||{}).value || '';
+  var err = document.getElementById('mconcl-err');
+  if (!texto.trim()) {
+    if (err) { err.textContent = 'Descreva o que foi feito.'; err.style.display = 'block'; }
+    return;
+  }
+  if (err) err.style.display = 'none';
+  if (!_pendingStatusPlano) return;
+  var id = _pendingStatusPlano.id;
+  _pendingStatusPlano = null;
+  document.getElementById('modal-conclusao-plano').style.display = 'none';
+
+  var updatedPlano = null;
+  var list = getPlanos().map(function(p){
+    if (p.id !== id) return p;
+    updatedPlano = Object.assign({}, p, {
+      status: 'resolvido',
+      resolvidoEm: new Date().toLocaleString('pt-BR'),
+      conclusao: { texto: texto.trim(), foto: _pendingConclusaoFoto || '' }
+    });
+    return updatedPlano;
+  });
+  _pendingConclusaoFoto = null;
+  if (!updatedPlano) return;
+
+  _planosCache = list;
+  try { localStorage.setItem(PLANO_KEY, JSON.stringify(list)); } catch(e) {}
+  db.collection('planos').doc(id).set(updatedPlano).then(function(){
+    showToast('✅ Plano resolvido!');
+  }).catch(function(err){
+    showToast('⚠ Firebase: ' + (err && err.code ? err.code : 'erro ao salvar'));
+  });
   renderPlanos(planoFiltroAtual);
   atualizarBadgePlano();
 }
@@ -4148,19 +4296,33 @@ function renderPlanos(filtro) {
   if (!lista.length) { wrap.innerHTML='<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Nenhum plano nesta categoria.</div>'; return; }
   var STATUS_COR = {aberto:'var(--r)',andamento:'var(--am)',resolvido:'var(--g)'};
   var STATUS_LABEL = {aberto:'🔴 Aberto',andamento:'🟡 Em Andamento',resolvido:'✅ Resolvido'};
+  var PERFIL_LABEL = {operator:'Operador',prevencao:'Prevenção',gerencia:'Gerência',admin:'Administrador'};
   wrap.innerHTML = lista.map(function(p){
     var cor = STATUS_COR[p.status]||'var(--t3)';
+    var lojaTag = (p.loja && isAdmin) ? '<span style="background:#fff8e1;color:#b45309;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:600;margin-right:4px">🏪 '+p.loja+'</span>' : '';
+    var iniInfo = (p.iniciadoPor && p.iniciadoPor.nome)
+      ? '<div style="font-size:11px;color:var(--t2);margin-top:5px">▶ Iniciado por <strong>'+p.iniciadoPor.nome+'</strong> ('+(PERFIL_LABEL[p.iniciadoPor.perfil]||p.iniciadoPor.perfil||'')+')'+(p.iniciadoPor.em?' — '+p.iniciadoPor.em:'')+'</div>' : '';
+    var conclusaoHtml = '';
+    if (p.conclusao && p.conclusao.texto) {
+      conclusaoHtml = '<div style="margin-top:10px;padding:8px 12px;background:#f0fdf4;border-left:3px solid var(--g);border-radius:6px">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--g);margin-bottom:3px">✅ O que foi feito</div>'
+        +'<div style="font-size:12px;color:var(--t)">'+p.conclusao.texto+'</div>'
+        +(p.conclusao.foto ? '<div style="margin-top:6px"><img src="'+p.conclusao.foto+'" style="max-width:100%;max-height:160px;border-radius:8px;object-fit:cover;border:1px solid var(--gray2)"/></div>' : '')
+        +'</div>';
+    }
     return '<div style="background:#fff;border:1px solid var(--gray2);border-left:4px solid '+cor+';border-radius:12px;padding:16px 18px;box-shadow:var(--sh)">'
       +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">'
       +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:14px;font-weight:700;color:var(--t);margin-bottom:4px">'+p.desc+'</div>'
+      +'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">'+lojaTag+'<span style="font-size:14px;font-weight:700;color:var(--t)">'+p.desc+'</span></div>'
       +(p.origem?'<div style="font-size:11px;color:var(--t3);margin-bottom:4px">📋 '+p.origem+'</div>':'')
       +'<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--t2)">'
       +(p.responsavel?'<span>👤 '+p.responsavel+'</span>':'')
       +(p.prazo?'<span>📅 '+p.prazo+'</span>':'')
       +'<span style="color:'+cor+';font-weight:600">'+STATUS_LABEL[p.status]+'</span>'
       +'</div>'
+      +iniInfo
       +(p.obs?'<div style="font-size:12px;color:var(--t3);margin-top:6px;padding:6px 10px;background:var(--gray);border-radius:6px">'+p.obs+'</div>':'')
+      +conclusaoHtml
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'
       +(p.status==='aberto'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'andamento\')">Iniciar</button>':'')
@@ -4168,7 +4330,7 @@ function renderPlanos(filtro) {
       +(p.status==='resolvido'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'aberto\')">Reabrir</button>':'')
       +'</div>'
       +'</div>'
-      +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+'</div>'
+      +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+(p.resolvidoEm?' · Resolvido em '+p.resolvidoEm:'')+'</div>'
       +'</div>';
   }).join('');
 }

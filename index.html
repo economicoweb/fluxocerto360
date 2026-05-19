@@ -309,6 +309,7 @@
           <div class="tab on" onclick="switchCentralTab('checklist',this)">✅ Checklist</div>
           <div class="tab" onclick="switchCentralTab('inventario',this)" style="display:none">📦 Inventário</div>
           <div class="tab" onclick="switchCentralTab('perdas',this)" style="display:none">📉 Perdas</div>
+          <div class="tab" onclick="switchCentralTab('plano',this)">📋 Plano de Ação</div>
         </div>
 
         <!-- Filtros comuns -->
@@ -360,6 +361,20 @@
           </div>
           <div class="card"><div class="card-hdr"><div class="card-title">Perdas Registradas</div></div>
             <div style="padding:40px;text-align:center;color:var(--t3);font-size:13px">Lance perdas na aba Lançar Perdas para ver aqui.</div>
+          </div>
+        </div>
+
+        <!-- ABA PLANO DE AÇÃO -->
+        <div id="central-tab-plano" style="display:none">
+          <div class="g4" style="margin-bottom:16px">
+            <div class="mc"><div class="lbl">Total Planos</div><div class="val" id="cplano-total">0</div></div>
+            <div class="mc"><div class="lbl">Resolvidos</div><div class="val up" id="cplano-resolvidos">0</div></div>
+            <div class="mc"><div class="lbl">Em Andamento</div><div class="val" style="color:var(--am)" id="cplano-andamento">0</div></div>
+            <div class="mc"><div class="lbl">Abertos</div><div class="val dn" id="cplano-abertos">0</div></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><div class="card-title">Planos de Ação</div></div>
+            <div id="cplano-lista"><div class="erow" style="padding:32px;text-align:center;color:var(--t3);font-size:13px">Carregando...</div></div>
           </div>
         </div>
       </div>
@@ -1082,15 +1097,50 @@
   </div>
 </div>
 
-<!-- MODAL CONFIRMAÇÃO STATUS PLANO -->
+<!-- MODAL CONFIRMAÇÃO STATUS PLANO (iniciar / reabrir) -->
 <div class="modal-bg" id="modal-confirm-plano" style="display:none">
-  <div class="modal-box" style="max-width:380px;text-align:center">
+  <div class="modal-box" style="max-width:420px;text-align:center">
     <div style="font-size:32px;margin-bottom:8px" id="mcp-icon">▶</div>
     <div class="modal-title" id="mcp-titulo" style="margin-bottom:8px">Iniciar plano?</div>
-    <div style="font-size:13px;color:var(--t2);margin-bottom:20px" id="mcp-desc"></div>
+    <div style="font-size:13px;color:var(--t2);margin-bottom:16px" id="mcp-desc"></div>
+    <!-- campos extras para "andamento" -->
+    <div id="mcp-iniciar-fields" style="display:none;text-align:left;background:var(--gray);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:10px">Quem vai executar este plano?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="mcp-iniciar-nome" placeholder="Nome completo" style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"/>
+        <select id="mcp-iniciar-perfil" style="flex:1;min-width:130px;padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit;background:#fff">
+          <option value="operator">Operador</option>
+          <option value="prevencao">Prevenção</option>
+          <option value="gerencia">Gerência</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+    </div>
     <div class="btn-row" style="justify-content:center;gap:12px">
       <button class="btn btn-p" id="mcp-sim" onclick="confirmarStatusPlano()">✔ Sim, confirmar</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-confirm-plano').style.display='none'">✖ Não</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONCLUSÃO PLANO DE AÇÃO -->
+<div class="modal-bg" id="modal-conclusao-plano" style="display:none">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">✅ Concluir Plano de Ação</div>
+    <div style="font-size:13px;color:var(--t2);margin-bottom:14px;padding:8px 10px;background:var(--gray);border-radius:8px" id="mconcl-desc"></div>
+    <div class="frow c1"><div class="fg"><label>O que foi feito <span style="color:var(--r)">*</span></label><textarea id="mconcl-texto" rows="3" placeholder="Descreva o que foi realizado para resolver o problema..."></textarea></div></div>
+    <div class="fg" style="margin-top:10px">
+      <label>Foto comprobatória (opcional)</label>
+      <input type="file" id="mconcl-foto" accept="image/*" capture="environment" onchange="onConcluFotoChange(this)" style="width:100%;padding:6px;border:1.5px solid var(--gray2);border-radius:8px;font-size:12px;background:#fff;font-family:inherit"/>
+      <div id="mconcl-preview" style="display:none;margin-top:8px;text-align:center">
+        <img id="mconcl-preview-img" style="max-width:100%;max-height:180px;border-radius:8px;object-fit:cover;border:1.5px solid var(--gray2)"/>
+        <div style="font-size:11px;color:var(--g);margin-top:4px">Foto carregada</div>
+      </div>
+    </div>
+    <div class="modal-err" id="mconcl-err" style="display:none"></div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-p" onclick="confirmarConclusaoPlano()">✅ Confirmar Conclusão</button>
+      <button class="btn btn-s" onclick="document.getElementById('modal-conclusao-plano').style.display='none'">Cancelar</button>
     </div>
   </div>
 </div>
