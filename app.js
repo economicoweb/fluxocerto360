@@ -1053,56 +1053,69 @@ function buildCLBlock(cl) {
       }
     } else if (tipo === 'planilha') {
       var userLoja = S.currentUser ? (S.currentUser.loja || '') : '';
+      var modoPlanilha = item.modoPlanilha || 'fixa';
+      var hoje = new Date().toISOString().slice(0, 10);
       var produtos = [];
-      if (item.lojas) {
-        produtos = item.lojas[userLoja] || [];
+      if (modoPlanilha === 'diaria') {
+        var diariaKey = cl.id + '_diaria_' + i + '_' + hoje;
+        try { produtos = JSON.parse(S.checkState[diariaKey] || '[]'); } catch(e) { produtos = []; }
+        if (!produtos.length && !jaConcluido) {
+          belowHtml = '<div style="margin-top:10px;padding:14px;border:2px dashed var(--gray2);border-radius:8px;text-align:center">'
+            +'<div style="font-size:13px;color:var(--t2);margin-bottom:8px">📅 Planilha de hoje não carregada</div>'
+            +'<input type="file" id="diaria-file-'+cl.id+'-'+i+'" accept=".csv,.txt" style="display:none" onchange="uploadPlanilhaDiaria(\''+cl.id+'\','+i+',this)" onclick="event.stopPropagation()">'
+            +'<button class="btn btn-s btn-sm" onclick="event.stopPropagation();document.getElementById(\'diaria-file-'+cl.id+'-'+i+'\').click()">📂 Carregar Planilha de Hoje</button>'
+            +'</div>';
+          S.checkState[cl.id+'_'+item.t] = '';
+        }
       } else {
-        produtos = item.produtos || [];
+        produtos = item.lojas ? (item.lojas[userLoja] || []) : (item.produtos || []);
       }
-      var filledCount = produtos.filter(function(p) {
-        var v = S.checkState[cl.id+'_qty_'+i+'_'+p.codigo];
-        return v !== undefined && v !== '';
-      }).length;
-      var tHead = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
-        +'<thead><tr style="background:var(--gray)">'
-        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Código</th>'
-        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Descrição</th>'
-        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Setor</th>'
-        +'<th style="padding:5px 7px;text-align:center;font-weight:600;color:var(--t2)">Qtd</th>'
-        +'</tr></thead><tbody>';
-      if (!jaConcluido) {
-        belowHtml = '<div style="margin-top:10px;overflow-x:auto">'
-          + tHead
-          + produtos.map(function(p) {
-              var qtdVal = S.checkState[cl.id+'_qty_'+i+'_'+p.codigo];
-              if (qtdVal === undefined) qtdVal = '';
-              var filled = qtdVal !== '';
-              return '<tr style="border-bottom:1px solid var(--gray2)">'
-                +'<td style="padding:5px 7px;color:var(--t2);font-size:11px">'+p.codigo+'</td>'
-                +'<td style="padding:5px 7px;color:var(--t)">'+p.descricao+'</td>'
-                +'<td style="padding:5px 7px;color:var(--t2)">'+( p.setor||'—')+'</td>'
-                +'<td style="padding:5px 7px;text-align:center">'
-                +'<input type="number" min="0" inputmode="numeric" value="'+qtdVal+'"'
-                +' onchange="salvarQuantidade(\''+cl.id+'\','+i+',\''+p.codigo+'\',this.value)"'
-                +' onclick="event.stopPropagation()"'
-                +' style="width:62px;padding:4px 6px;border:1.5px solid '+(filled?'var(--g2)':'var(--gray2)')+';border-radius:6px;font-size:12px;text-align:center;font-weight:'+(filled?'700':'400')+'">'
-                +'</td></tr>';
-            }).join('')
-          + '</tbody></table></div>'
-          + '<div style="font-size:11px;color:var(--t3);margin-top:5px">'+filledCount+'/'+produtos.length+' produtos preenchidos</div>';
-      } else {
-        belowHtml = '<div style="margin-top:10px;overflow-x:auto">'
-          + tHead
-          + produtos.map(function(p) {
-              var qtdVal = S.checkState[cl.id+'_qty_'+i+'_'+p.codigo] || '—';
-              return '<tr style="border-bottom:1px solid var(--gray2)">'
-                +'<td style="padding:5px 7px;color:var(--t2);font-size:11px">'+p.codigo+'</td>'
-                +'<td style="padding:5px 7px;color:var(--t)">'+p.descricao+'</td>'
-                +'<td style="padding:5px 7px;color:var(--t2)">'+(p.setor||'—')+'</td>'
-                +'<td style="padding:5px 7px;text-align:center;font-weight:700;color:var(--g)">'+qtdVal+'</td>'
-                +'</tr>';
-            }).join('')
-          + '</tbody></table></div>';
+      if (produtos.length) {
+        var filledCount = produtos.filter(function(p) {
+          var v = S.checkState[cl.id+'_qty_'+i+'_'+p.codigo];
+          return v !== undefined && v !== '';
+        }).length;
+        var tHead = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+          +'<thead><tr style="background:var(--gray)">'
+          +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Código</th>'
+          +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Descrição</th>'
+          +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Setor</th>'
+          +'<th style="padding:5px 7px;text-align:center;font-weight:600;color:var(--t2)">Qtd</th>'
+          +'</tr></thead><tbody>';
+        if (!jaConcluido) {
+          belowHtml = '<div style="margin-top:10px;overflow-x:auto">'
+            + tHead
+            + produtos.map(function(p) {
+                var qtdVal = S.checkState[cl.id+'_qty_'+i+'_'+p.codigo];
+                if (qtdVal === undefined) qtdVal = '';
+                var filled = qtdVal !== '';
+                return '<tr style="border-bottom:1px solid var(--gray2)">'
+                  +'<td style="padding:5px 7px;color:var(--t2);font-size:11px">'+p.codigo+'</td>'
+                  +'<td style="padding:5px 7px;color:var(--t)">'+p.descricao+'</td>'
+                  +'<td style="padding:5px 7px;color:var(--t2)">'+(p.setor||'—')+'</td>'
+                  +'<td style="padding:5px 7px;text-align:center">'
+                  +'<input type="number" min="0" inputmode="numeric" value="'+qtdVal+'"'
+                  +' onchange="salvarQuantidade(\''+cl.id+'\','+i+',\''+p.codigo+'\',this.value)"'
+                  +' onclick="event.stopPropagation()"'
+                  +' style="width:62px;padding:4px 6px;border:1.5px solid '+(filled?'var(--g2)':'var(--gray2)')+';border-radius:6px;font-size:12px;text-align:center;font-weight:'+(filled?'700':'400')+'">'
+                  +'</td></tr>';
+              }).join('')
+            + '</tbody></table></div>'
+            + '<div style="font-size:11px;color:var(--t3);margin-top:5px">'+filledCount+'/'+produtos.length+' produtos preenchidos</div>';
+        } else {
+          belowHtml = '<div style="margin-top:10px;overflow-x:auto">'
+            + tHead
+            + produtos.map(function(p) {
+                var qtdVal = S.checkState[cl.id+'_qty_'+i+'_'+p.codigo] || '—';
+                return '<tr style="border-bottom:1px solid var(--gray2)">'
+                  +'<td style="padding:5px 7px;color:var(--t2);font-size:11px">'+p.codigo+'</td>'
+                  +'<td style="padding:5px 7px;color:var(--t)">'+p.descricao+'</td>'
+                  +'<td style="padding:5px 7px;color:var(--t2)">'+(p.setor||'—')+'</td>'
+                  +'<td style="padding:5px 7px;text-align:center;font-weight:700;color:var(--g)">'+qtdVal+'</td>'
+                  +'</tr>';
+              }).join('')
+            + '</tbody></table></div>';
+        }
       }
     }
     return '<div id="cli-' + cl.id + '-' + i + '" style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--gray2);border-radius:10px;background:' + itemBg + '">'
@@ -1620,6 +1633,18 @@ function togglePlanilhaRow(sel) {
   var isPlanilha = sel.value === 'planilha';
   row.style.display = isPlanilha ? 'block' : 'none';
   if (fotoSel) fotoSel.style.display = isPlanilha ? 'none' : '';
+  if (isPlanilha) {
+    var modoInputs = document.querySelectorAll('input[name="ncl-planilha-modo"]');
+    modoInputs.forEach(function(inp){ inp.checked = inp.value === 'fixa'; });
+    onPlanilhaModoChange('fixa');
+  }
+}
+
+function onPlanilhaModoChange(modo) {
+  var fixaSection = document.getElementById('ncl-planilha-fixa-section');
+  var diariaSection = document.getElementById('ncl-planilha-diaria-section');
+  if (fixaSection) fixaSection.style.display = modo === 'fixa' ? '' : 'none';
+  if (diariaSection) diariaSection.style.display = modo === 'diaria' ? 'block' : 'none';
 }
 
 function onPlanilhaCSVChange(input) {
@@ -1667,14 +1692,41 @@ function renderNclPlanilhaLojas() {
   }).join('');
 }
 
+function uploadPlanilhaDiaria(clId, itemIdx, fileInput) {
+  var file = fileInput.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var produtos = parseCSV(e.target.result);
+    if (!produtos.length) { showToast('Nenhum produto encontrado no CSV'); return; }
+    var hoje = new Date().toISOString().slice(0, 10);
+    var diariaKey = clId + '_diaria_' + itemIdx + '_' + hoje;
+    S.checkState[diariaKey] = JSON.stringify(produtos);
+    saveCheckState();
+    var cl = getMyCLs().find(function(c) { return c.id === clId; });
+    if (cl) {
+      var block = document.getElementById('cl-block-' + clId);
+      if (block) block.innerHTML = buildCLBlock(cl);
+    }
+    showToast(produtos.length + ' produtos carregados!');
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 function salvarQuantidade(clId, itemIdx, codigo, val) {
   S.checkState[clId + '_qty_' + itemIdx + '_' + codigo] = val;
   var cl = getMyCLs().find(function(c) { return c.id === clId; });
   if (!cl) return;
   var item = cl.itens[itemIdx];
   if (!item || item.tipo !== 'planilha') return;
-  var userLoja = S.currentUser ? (S.currentUser.loja || '') : '';
-  var produtos = item.lojas ? (item.lojas[userLoja] || []) : (item.produtos || []);
+  var produtos = [];
+  if ((item.modoPlanilha || 'fixa') === 'diaria') {
+    var hoje = new Date().toISOString().slice(0, 10);
+    try { produtos = JSON.parse(S.checkState[clId + '_diaria_' + itemIdx + '_' + hoje] || '[]'); } catch(e) { produtos = []; }
+  } else {
+    var userLoja = S.currentUser ? (S.currentUser.loja || '') : '';
+    produtos = item.lojas ? (item.lojas[userLoja] || []) : (item.produtos || []);
+  }
   var allFilled = produtos.every(function(p) {
     var v = S.checkState[clId + '_qty_' + itemIdx + '_' + p.codigo];
     return v !== undefined && v !== '';
@@ -1692,6 +1744,16 @@ function limparContagensAntigas() {
       }
     });
   }).catch(function() {});
+  // Limpa chaves de planilha diária antigas do checkState
+  var keysAntigos = Object.keys(S.checkState || {}).filter(function(k) {
+    if (k.indexOf('_diaria_') === -1) return false;
+    var datePart = k.slice(-10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(datePart) && datePart < hoje;
+  });
+  if (keysAntigos.length) {
+    keysAntigos.forEach(function(k) { delete S.checkState[k]; });
+    saveCheckState();
+  }
 }
 
 function jaEnviouHoje(clId) {
@@ -1799,7 +1861,13 @@ function confirmarEnviar(assinatura) {
     var itemProdutos = null;
     if (tipo === 'planilha') {
       var uLoja = S.currentUser ? (S.currentUser.loja || '') : '';
-      var lojaProds = item.lojas ? (item.lojas[uLoja] || []) : (item.produtos || []);
+      var lojaProds = [];
+      if ((item.modoPlanilha || 'fixa') === 'diaria') {
+        var hojeDiaria = new Date().toISOString().slice(0, 10);
+        try { lojaProds = JSON.parse(S.checkState[clId+'_diaria_'+idx+'_'+hojeDiaria] || '[]'); } catch(e) { lojaProds = []; }
+      } else {
+        lojaProds = item.lojas ? (item.lojas[uLoja] || []) : (item.produtos || []);
+      }
       if (lojaProds.length) {
         itemProdutos = lojaProds.map(function(p) {
           return Object.assign({}, p, { quantidade: S.checkState[clId+'_qty_'+idx+'_'+p.codigo] || '' });
@@ -1853,7 +1921,13 @@ function confirmarEnviar(assinatura) {
   cl.itens.forEach(function(clItem, idx) {
     if (clItem.tipo !== 'planilha') return;
     var uLoja2 = S.currentUser ? (S.currentUser.loja || '') : '';
-    var lojaProds2 = clItem.lojas ? (clItem.lojas[uLoja2] || []) : (clItem.produtos || []);
+    var lojaProds2 = [];
+    if ((clItem.modoPlanilha || 'fixa') === 'diaria') {
+      var hojeCtg = new Date().toISOString().slice(0, 10);
+      try { lojaProds2 = JSON.parse(S.checkState[clId+'_diaria_'+idx+'_'+hojeCtg] || '[]'); } catch(e) { lojaProds2 = []; }
+    } else {
+      lojaProds2 = clItem.lojas ? (clItem.lojas[uLoja2] || []) : (clItem.produtos || []);
+    }
     if (!lojaProds2.length) return;
     var produtos = lojaProds2.map(function(p) {
       return Object.assign({}, p, { quantidade: S.checkState[clId+'_qty_'+idx+'_'+p.codigo] || '' });
@@ -1931,22 +2005,28 @@ function addItemNCL() {
   var criticoEl = document.getElementById('ncl-item-critico');
   if (!txt) return;
   if (tipo === 'planilha') {
-    if (!Object.keys(pendingPlanilhaLojas).length) {
-      showToast('Adicione pelo menos uma loja com arquivo CSV');
-      return;
+    var modoChecked = document.querySelector('input[name="ncl-planilha-modo"]:checked');
+    var modoPlanilha = modoChecked ? modoChecked.value : 'fixa';
+    if (modoPlanilha === 'diaria') {
+      nclItens.push({ t: txt, obs: obs, tipo: 'planilha', foto: false, critico: false, modoPlanilha: 'diaria', lojas: {} });
+    } else {
+      if (!Object.keys(pendingPlanilhaLojas).length) {
+        showToast('Adicione pelo menos uma loja com arquivo CSV');
+        return;
+      }
+      var lojasCopy = {};
+      Object.keys(pendingPlanilhaLojas).forEach(function(l) { lojasCopy[l] = pendingPlanilhaLojas[l].slice(); });
+      nclItens.push({ t: txt, obs: obs, tipo: 'planilha', foto: false, critico: false, modoPlanilha: 'fixa', lojas: lojasCopy });
+      pendingPlanilhaLojas = {};
+      pendingPlanilhaProdutos = null;
+      var csvInput = document.getElementById('ncl-planilha-csv');
+      if (csvInput) csvInput.value = '';
+      var lojaInput = document.getElementById('ncl-planilha-loja-nome');
+      if (lojaInput) lojaInput.value = '';
+      renderNclPlanilhaLojas();
+      var info = document.getElementById('ncl-planilha-info');
+      if (info) info.textContent = 'Formato: código, descrição, setor — um produto por linha';
     }
-    var lojasCopy = {};
-    Object.keys(pendingPlanilhaLojas).forEach(function(l) { lojasCopy[l] = pendingPlanilhaLojas[l].slice(); });
-    nclItens.push({ t: txt, obs: obs, tipo: 'planilha', foto: false, critico: false, lojas: lojasCopy });
-    pendingPlanilhaLojas = {};
-    pendingPlanilhaProdutos = null;
-    var csvInput = document.getElementById('ncl-planilha-csv');
-    if (csvInput) csvInput.value = '';
-    var lojaInput = document.getElementById('ncl-planilha-loja-nome');
-    if (lojaInput) lojaInput.value = '';
-    renderNclPlanilhaLojas();
-    var info = document.getElementById('ncl-planilha-info');
-    if (info) info.textContent = 'Formato: código, descrição, setor — um produto por linha';
   } else {
     var foto = fotoVal !== 'none' ? fotoVal : false;
     var critico = criticoEl ? criticoEl.checked : false;
