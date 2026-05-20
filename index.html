@@ -778,6 +778,7 @@
         <div class="tabs" id="u-filter-tabs">
           <div class="tab on" onclick="filtrarUsers('todos',this)">Todos</div>
           <div class="tab" onclick="filtrarUsers('gerencia',this)">Gerência</div>
+          <div class="tab" onclick="filtrarUsers('supervisor',this)">Supervisores</div>
           <div class="tab" onclick="filtrarUsers('operator',this)">Operadores</div>
           <div class="tab" onclick="filtrarUsers('prevencao',this)">Prevenção</div>
         </div>
@@ -787,6 +788,7 @@
         </div>
         <div class="g3" style="margin-top:14px">
           <div class="mc"><div class="lbl">Gerências</div><div class="val" id="u-ger">0</div></div>
+          <div class="mc"><div class="lbl">Supervisores</div><div class="val" id="u-sup">0</div></div>
           <div class="mc"><div class="lbl">Operadores</div><div class="val" id="u-op">0</div></div>
           <div class="mc"><div class="lbl">Prevenção</div><div class="val" id="u-prev">0</div></div>
         </div>
@@ -830,7 +832,7 @@
     <div class="frow c2"><div class="fg"><label>Nome completo</label><input id="u-nome" type="text" placeholder="Ex: João Silva"/></div><div class="fg"><label>E-mail (login)</label><input id="u-email" type="text" placeholder="joao@cahu360.com"/></div></div>
     <div class="frow c2"><div class="fg"><label>Senha <span id="senha-hint" style="font-size:11px;color:var(--t3);font-weight:400"></span></label><input id="u-senha" type="password" placeholder="Mínimo 4 caracteres"/></div><div class="fg"><label>Confirmar senha</label><input id="u-senha2" type="password" placeholder="Repita a senha"/></div></div>
     <div class="frow c2">
-      <div class="fg"><label>Perfil</label><select id="u-perfil"><option value="gerencia">👔 Gerência de Loja</option><option value="operator">🛒 Operador</option><option value="prevencao">🔍 Aux. Prevenção</option></select></div>
+      <div class="fg"><label>Perfil</label><select id="u-perfil"><option value="gerencia">👔 Gerência de Loja</option><option value="supervisor">🔎 Supervisor</option><option value="operator">🛒 Operador</option><option value="prevencao">🔍 Aux. Prevenção</option></select></div>
       <div class="fg"><label>Setor</label><select id="u-setor"><option>Gerência</option><option>Mercearia</option><option>Perecíveis</option><option>Frios</option><option>Hortifruti</option><option>Açougue</option><option>Padaria</option><option>Bebidas</option><option>Caixa</option><option>Prevenção</option><option>Geral</option></select></div>
     </div>
     <div class="frow c2"><div class="fg"><label>Cargo / Observação</label><input id="u-cargo" type="text" placeholder="Ex: Encarregado de Mercearia"/></div><div class="fg"><label>Loja</label><input id="u-loja" type="text" placeholder="Ex: Loja Centro, Filial Norte"/></div></div>
@@ -844,7 +846,7 @@
   <div class="modal-box" style="width:500px">
     <div class="modal-title" id="mcl-title">Novo Checklist</div>
     <div class="frow c2"><div class="fg"><label>Nome</label><input id="ncl-nome" type="text" placeholder="Ex: Açougue — Tarde"/></div><div class="fg"><label>Setor</label><select id="ncl-setor"><option>Açougue</option><option>Hortifruti</option><option>Frios</option><option>Padaria</option><option>Mercearia</option><option>Bebidas</option><option>Limpeza</option><option>Caixa</option><option>Prevenção</option><option>Gerência</option><option>Geral</option></select></div></div>
-    <div class="frow c2"><div class="fg"><label>Perfil que executa</label><select id="ncl-perfil"><option value="operator">Operador</option><option value="prevencao">Prevenção</option><option value="gerencia">Gerência</option><option value="todos">Todos</option></select></div><div class="fg"><label>Turno</label><select id="ncl-turno"><option>Abertura</option><option>Manhã</option><option>Tarde</option><option>Noite</option><option>Fechamento</option><option>Qualquer</option></select></div></div>
+    <div class="frow c2"><div class="fg"><label>Perfil que executa</label><select id="ncl-perfil"><option value="operator">Operador</option><option value="supervisor">Supervisor</option><option value="prevencao">Prevenção</option><option value="gerencia">Gerência</option><option value="todos">Todos</option></select></div><div class="fg"><label>Turno</label><select id="ncl-turno"><option>Abertura</option><option>Manhã</option><option>Tarde</option><option>Noite</option><option>Fechamento</option><option>Qualquer</option></select></div></div>
     <div class="frow c1"><div class="fg"><label>Descrição</label><input id="ncl-desc" type="text" placeholder="Objetivo deste checklist"/></div></div>
     <div style="background:var(--gray);border-radius:10px;padding:12px 14px;margin-top:4px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);margin-bottom:8px">📅 Agenda obrigatória (opcional)</div>

@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', atualizarStatusConexao);
 // ===========================================
 // DADOS BUILTIN DE CHECKLISTS
 // ===========================================
-var BUILTIN = { admin:[], operator:[], prevencao:[] };
+var BUILTIN = { admin:[], operator:[], prevencao:[], supervisor:[] };
 
 // ===========================================
 // STORAGE
@@ -303,7 +303,7 @@ function loadCustomCLsFromFirebase(callback) {
 function filterResultadosByLoja(resultados) {
   var u = S.currentUser;
   if (!u) return [];
-  if (u.perfil === 'admin' || u.perfil === 'gerencia') return resultados;
+  if (u.perfil === 'admin' || u.perfil === 'gerencia' || u.perfil === 'supervisor') return resultados;
   var myLoja = (u.loja || '').trim().toLowerCase();
   if (!myLoja) return resultados; // sem loja atribuída → não filtra (fallback seguro)
   var users = getUsers();
@@ -382,8 +382,8 @@ function getChecklistsObrigatoriosHoje() {
 // Retorna pendências: checklists que ainda não foram enviados hoje
 function getPendencias() {
   var u = S.currentUser;
-  var isManager = u && (u.perfil === 'admin' || u.perfil === 'gerencia');
-  // Gerência/admin vê TODOS os checklists; operadores só os obrigatórios de hoje
+  var isManager = u && (u.perfil === 'admin' || u.perfil === 'gerencia' || u.perfil === 'supervisor');
+  // Gerência/admin/supervisor vê TODOS os checklists; operadores só os obrigatórios de hoje
   var lista = isManager ? getCustomCLs() : getChecklistsObrigatoriosHoje();
   if (!lista.length) return [];
   var hoje = new Date().toLocaleDateString('pt-BR');
@@ -411,7 +411,7 @@ function getPendencias() {
 // Abre painel de pendências
 function abrirPendentes() {
   var u = S.currentUser;
-  var isManager = u && (u.perfil === 'admin' || u.perfil === 'gerencia');
+  var isManager = u && (u.perfil === 'admin' || u.perfil === 'gerencia' || u.perfil === 'supervisor');
   var todos = isManager ? getCustomCLs() : getChecklistsObrigatoriosHoje();
   var hoje = new Date().toLocaleDateString('pt-BR');
   var resultados = getResultados();
@@ -596,7 +596,7 @@ function finalizarLogin(found) {
   setupRole();
   setDate();
   checkMobile();
-  var isOpOrPrev2 = S.role==='operator'||S.role==='prevencao';
+  var isOpOrPrev2 = S.role==='operator'||S.role==='prevencao'||S.role==='supervisor';
 
   // Mostrar tela de carregamento
   document.getElementById('app').style.opacity='0.6';
@@ -626,10 +626,11 @@ function finalizarLogin(found) {
     document.getElementById('app').style.opacity='1';
     var lastPage = sessionStorage.getItem('eco_last_page');
     var pagesForRole = {
-      admin:    ['dashboard','checklist','central','relatorios','usuarios','plano'],
-      gerencia: ['dashboard','checklist','central','plano'],
-      operator: ['checklist'],
-      prevencao:['checklist']
+      admin:      ['dashboard','checklist','central','relatorios','usuarios','plano'],
+      gerencia:   ['dashboard','checklist','central','plano'],
+      supervisor: ['checklist','relatorios','plano'],
+      operator:   ['checklist'],
+      prevencao:  ['checklist']
     };
     var allowed = pagesForRole[S.role] || ['checklist'];
     if (lastPage && allowed.indexOf(lastPage) >= 0) {
@@ -712,9 +713,9 @@ function doLogout() {
 
 function setupRole() {
   var r = S.role;
-  var roleNames = {admin:'Administrador',gerencia:'Gerência de Loja',operator:'Operador',prevencao:'Aux. Prevenção'};
-  var badgeCls = {admin:'badge-admin',gerencia:'badge-admin',operator:'badge-op',prevencao:'badge-prev'};
-  var badgeTxt = {admin:'Administrador',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
+  var roleNames = {admin:'Administrador',gerencia:'Gerência de Loja',supervisor:'Supervisor',operator:'Operador',prevencao:'Aux. Prevenção'};
+  var badgeCls = {admin:'badge-admin',gerencia:'badge-admin',supervisor:'badge-sup',operator:'badge-op',prevencao:'badge-prev'};
+  var badgeTxt = {admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
   document.getElementById('sbName').textContent = S.currentUser ? S.currentUser.nome : '-';
   document.getElementById('sbRole').textContent = roleNames[r]||r;
   var tb = document.getElementById('tbBadge');
@@ -722,19 +723,19 @@ function setupRole() {
   tb.textContent = badgeTxt[r]||r;
   var isAdmin = r==='admin';
   var isAdmOrGer = r==='admin'||r==='gerencia';
+  var isSup = r==='supervisor';
   show('sb-adm-sec', isAdmOrGer);
-  // Show/hide gerenciar tab in checklist
+  // Show/hide gerenciar tab in checklist (supervisor não gerencia checklists)
   var tabGer = document.getElementById('tab-gerenciar');
   if (tabGer) tabGer.style.display = isAdmOrGer ? '' : 'none';
-  // Dashboard só para admin e gerencia
-  var isOpOrPrev = r==='operator'||r==='prevencao';
-  show('nav-dashboard', !isOpOrPrev);
+  // Dashboard só para admin e gerência
+  show('nav-dashboard', isAdmOrGer);
   show('nav-central', isAdmin);
-  show('nav-relat', isAdmin);
+  show('nav-relat', isAdmin || isSup);
   show('nav-users', isAdmin);
-  // Botão de alertas visível para admin e gerência
+  // Alertas visível para admin e gerência (não supervisor)
   show('nav-alertas', isAdmOrGer);
-  show('nav-plano', isAdmOrGer);
+  show('nav-plano', isAdmOrGer || isSup);
   // Inicia verificação periódica de pendências para gestores
   if (isAdmOrGer) {
     pedirPermissaoNotificacao();
@@ -893,10 +894,11 @@ function getMyCLs() {
   var base = [];
   if (r==='admin') base = BUILTIN.admin.concat(BUILTIN.operator).concat(BUILTIN.prevencao);
   else if (r==='gerencia') base = BUILTIN.admin.concat(BUILTIN.operator);
+  else if (r==='supervisor') base = BUILTIN.supervisor.concat(BUILTIN.operator);
   else if (r==='operator') base = BUILTIN.operator.slice();
   else if (r==='prevencao') base = BUILTIN.prevencao.slice();
   var custom = getCustomCLs().filter(function(cl){
-    if (r==='admin') return true;
+    if (r==='admin' || r==='supervisor') return true;
     if (cl.perfil==='todos') return true;
     return cl.perfil===r;
   }).map(function(cl){
@@ -1453,8 +1455,8 @@ function renderResetUsers(usuariosEnviaram) {
     wrap._users = [];
     return;
   }
-  var PLABEL = {admin:'Admin',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
-  var PCLS = {operator:'st-ok',prevencao:'st-err',gerencia:'st-info',admin:'st-info'};
+  var PLABEL = {admin:'Admin',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
+  var PCLS = {operator:'st-ok',prevencao:'st-err',gerencia:'st-info',supervisor:'st-warn',admin:'st-info'};
   wrap._users = usuariosEnviaram;
   wrap.innerHTML = usuariosEnviaram.map(function(u,i){
     return '<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--gray2);border-radius:8px;background:#fff;cursor:pointer;transition:background .15s" id="ru-'+i+'" onclick="toggleResetUser('+i+')">'
@@ -2293,8 +2295,8 @@ function filtrarCL(f, btn) {
 }
 
 var SETOR_COLORS = {'Açougue':'#FCEBEB','Hortifruti':'#EAF3DE','Frios':'#E6F1FB','Padaria':'#FAEEDA','Mercearia':'#E6F1FB','Bebidas':'#E6F1FB','Prevenção':'#FCEBEB','Gerência':'#EAF3DE','Geral':'#f4f6f8','Limpeza':'#f4f6f8','Caixa':'#FAEEDA'};
-var PERF_LABEL = {operator:'Operador',prevencao:'Prevenção',gerencia:'Gerência',todos:'Todos',admin:'Admin'};
-var PERF_CLS = {operator:'st-ok',prevencao:'st-err',gerencia:'st-info',todos:'st-warn',admin:'st-info'};
+var PERF_LABEL = {operator:'Operador',prevencao:'Prevenção',supervisor:'Supervisor',gerencia:'Gerência',todos:'Todos',admin:'Admin'};
+var PERF_CLS = {operator:'st-ok',prevencao:'st-err',supervisor:'st-warn',gerencia:'st-info',todos:'st-warn',admin:'st-info'};
 
 function renderCLGrid() {
   var list = getCustomCLs();
@@ -2370,8 +2372,8 @@ function renderCentral() {
   document.getElementById('c-media').textContent=total?media+'%':'-';
   var tbody = document.getElementById('c-tbody');
   if (!lista.length) { tbody.innerHTML='<tr class="erow"><td colspan="8">Nenhum resultado ainda</td></tr>'; return; }
-  var PLABEL={admin:'Administrador',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
-  var PCLS={admin:'st-info',gerencia:'st-info',operator:'st-ok',prevencao:'st-err'};
+  var PLABEL={admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
+  var PCLS={admin:'st-info',gerencia:'st-info',supervisor:'st-warn',operator:'st-ok',prevencao:'st-err'};
   var reversed = lista.slice().reverse();
   tbody.innerHTML = reversed.map(function(r,i){
     var realIdx = lista.length-1-i;
@@ -2844,7 +2846,7 @@ function renderCentralPlanos() {
 
   var COR = {aberto:'var(--r)',andamento:'var(--am)',resolvido:'var(--g)'};
   var LABEL = {aberto:'🔴 Aberto',andamento:'🟡 Em Andamento',resolvido:'✅ Resolvido'};
-  var PERFIL = {operator:'Operador',prevencao:'Prevenção',gerencia:'Gerência',admin:'Administrador'};
+  var PERFIL = {operator:'Operador',prevencao:'Prevenção',supervisor:'Supervisor',gerencia:'Gerência',admin:'Administrador'};
 
   // Seção de prorrogações pendentes para aprovação
   var todosPlanos = getPlanos();
@@ -3166,8 +3168,8 @@ function filtrarUsers(f,btn) {
   renderUsers();
 }
 
-var UPLABEL={admin:'Administrador',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
-var UPCLS={admin:'st-info',gerencia:'st-info',operator:'st-ok',prevencao:'st-err'};
+var UPLABEL={admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
+var UPCLS={admin:'st-info',gerencia:'st-info',supervisor:'st-warn',operator:'st-ok',prevencao:'st-err'};
 
 function renderUsers() {
   var users=getUsers();
@@ -3195,6 +3197,7 @@ function renderUsers() {
       +'<td style="display:flex;gap:4px;flex-wrap:wrap">'+actions+'</td></tr>';
   }).join('');
   document.getElementById('u-ger').textContent=users.filter(function(u){return u.perfil==='gerencia';}).length;
+  document.getElementById('u-sup').textContent=users.filter(function(u){return u.perfil==='supervisor';}).length;
   document.getElementById('u-op').textContent=users.filter(function(u){return u.perfil==='operator';}).length;
   document.getElementById('u-prev').textContent=users.filter(function(u){return u.perfil==='prevencao';}).length;
 }
@@ -3735,8 +3738,8 @@ function renderRelChecklist() {
   }).join('') : '<tr class="erow"><td colspan="4">Nenhum dado</td></tr>';
 
   // Equipe completa
-  var PLABEL3={admin:'Administrador',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
-  var PCLS3={admin:'st-info',gerencia:'st-info',operator:'st-ok',prevencao:'st-err'};
+  var PLABEL3={admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
+  var PCLS3={admin:'st-info',gerencia:'st-info',supervisor:'st-warn',operator:'st-ok',prevencao:'st-err'};
   document.getElementById('rel-equipe-tbody').innerHTML = rankList.length ? rankList.map(function(o){
     var mst=o.media===100?'st-ok':o.media>=50?'st-warn':'st-err';
     return '<tr><td><strong>'+o.nome+'</strong></td><td><span class="st '+(PCLS3[o.perfil]||'st-ok')+'">'+(PLABEL3[o.perfil]||o.perfil)+'</span></td>'
@@ -4634,7 +4637,7 @@ function filtrarPlanos(filtro, el) {
 function renderPlanos(filtro) {
   var lista = getPlanos();
   var loja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
-  var isAdmin = S.role==='admin'||S.role==='gerencia';
+  var isAdmin = S.role==='admin'||S.role==='gerencia'||S.role==='supervisor';
   if (!isAdmin && loja) lista = lista.filter(function(p){ return (p.loja||'').toLowerCase()===loja; });
   if (filtro && filtro!=='todos') lista = lista.filter(function(p){ return p.status===filtro; });
   var dtIni = (document.getElementById('plano-dt-ini')||{}).value||'';
@@ -4649,7 +4652,7 @@ function renderPlanos(filtro) {
   lista = lista.slice(0, PLANO_PAGE_SIZE * _planoPageCount);
   var STATUS_COR = {aberto:'var(--r)',andamento:'var(--am)',resolvido:'var(--g)'};
   var STATUS_LABEL = {aberto:'🔴 Aberto',andamento:'🟡 Em Andamento',resolvido:'✅ Resolvido'};
-  var PERFIL_LABEL = {operator:'Operador',prevencao:'Prevenção',gerencia:'Gerência',admin:'Administrador'};
+  var PERFIL_LABEL = {operator:'Operador',prevencao:'Prevenção',supervisor:'Supervisor',gerencia:'Gerência',admin:'Administrador'};
   var verMaisHtml = (totalLista > lista.length)
     ? '<div style="text-align:center;padding:16px"><button class="btn btn-s btn-sm" onclick="_planoPageCount++;renderPlanos(planoFiltroAtual)">Ver mais ('+(totalLista - lista.length)+' restantes)</button></div>'
     : '';
@@ -4791,7 +4794,7 @@ function _planosVencidosDoUsuario() {
 function renderAlertaPlanos() {
   var wrap = document.getElementById('plano-alert-banner');
   if (!wrap) return;
-  var isAdm = S.role === 'admin' || S.role === 'gerencia';
+  var isAdm = S.role === 'admin' || S.role === 'gerencia' || S.role === 'supervisor';
   if (isAdm) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
   var uLoja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
   var agora = Date.now();
@@ -5177,8 +5180,8 @@ function _renderRelatorios_unused() {
   }).join('') : '<tr class="erow"><td colspan="4">Nenhum dado</td></tr>';
 
   // ── Equipe completa ──
-  var PLABEL3={admin:'Administrador',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
-  var PCLS3={admin:'st-info',gerencia:'st-info',operator:'st-ok',prevencao:'st-err'};
+  var PLABEL3={admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
+  var PCLS3={admin:'st-info',gerencia:'st-info',supervisor:'st-warn',operator:'st-ok',prevencao:'st-err'};
   var equTbody=document.getElementById('rel-equipe-tbody');
   equTbody.innerHTML = rankList.length ? rankList.map(function(o){
     var mst=o.media===100?'st-ok':o.media>=50?'st-warn':'st-err';
