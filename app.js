@@ -596,7 +596,7 @@ function finalizarLogin(found) {
   setupRole();
   setDate();
   checkMobile();
-  var isOpOrPrev2 = S.role==='operator'||S.role==='prevencao'||S.role==='supervisor';
+  var isOpOrPrev2 = S.role==='operator'||S.role==='prevencao';
 
   // Mostrar tela de carregamento
   document.getElementById('app').style.opacity='0.6';
@@ -628,7 +628,7 @@ function finalizarLogin(found) {
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano'],
       gerencia:   ['dashboard','checklist','central','plano'],
-      supervisor: ['checklist','relatorios','plano'],
+      supervisor: ['dashboard','checklist','relatorios','plano'],
       operator:   ['checklist'],
       prevencao:  ['checklist']
     };
@@ -729,7 +729,7 @@ function setupRole() {
   var tabGer = document.getElementById('tab-gerenciar');
   if (tabGer) tabGer.style.display = isAdmOrGer ? '' : 'none';
   // Dashboard só para admin e gerência
-  show('nav-dashboard', isAdmOrGer);
+  show('nav-dashboard', isAdmOrGer || isSup);
   show('nav-central', isAdmin);
   show('nav-relat', isAdmin || isSup);
   show('nav-users', isAdmin);
