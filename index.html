@@ -59,32 +59,30 @@
       <img src="logo.png" alt="Fluxo Certo 360" style="width:100%;max-width:150px;height:auto;mix-blend-mode:multiply;display:block;"/>
     </div>
     <div class="sb-nav">
-      <div class="sb-sec">Principal</div>
+      <div class="sb-sec">FC360 Checklist</div>
       <div class="sb-item active" id="nav-dashboard" onclick="nav('dashboard',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard
       </div>
-      <div class="sb-sec">Operacional</div>
       <div class="sb-item" onclick="nav('checklist',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Checklist
       </div>
-      <div class="sb-item" onclick="nav('inventario',this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>Inventário
-      </div>
-      <div class="sb-item" onclick="nav('perdas',this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Lançar Perdas
-      </div>
-
       <div class="sb-item" id="nav-plano" style="display:none;position:relative" onclick="nav('plano',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         Plano de Ação
         <span id="badge-plano" style="display:none;position:absolute;top:6px;right:10px;background:#e67e22;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;align-items:center;justify-content:center;line-height:1">0</span>
       </div>
-
-      <!-- Botão de alertas de pendências (visível só para gerência/admin) -->
       <div class="sb-item" id="nav-alertas" style="display:none;position:relative" onclick="abrirPendentes()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         Alertas
         <span id="badge-alertas" style="display:none;position:absolute;top:6px;right:10px;background:#c0392b;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;align-items:center;justify-content:center;line-height:1">0</span>
+      </div>
+
+      <!-- Módulos futuros (ocultos até ativação) -->
+      <div class="sb-item" onclick="nav('inventario',this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>Inventário
+      </div>
+      <div class="sb-item" onclick="nav('perdas',this)" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Lançar Perdas
       </div>
 
       <div class="sb-sec" id="sb-adm-sec" style="display:none">Administração</div>
