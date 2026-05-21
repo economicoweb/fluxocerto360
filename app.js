@@ -22,6 +22,16 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(function(err){
     console.warn('SW registro falhou:', err);
   });
+
+  // Quando o SW detectar nova versão, mostra banner e recarrega automaticamente
+  navigator.serviceWorker.addEventListener('message', function(event) {
+    if (!event.data || event.data.type !== 'SW_UPDATED') return;
+    var banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFC600;color:#111;text-align:center;padding:11px 16px;font-size:14px;font-weight:700;font-family:"DM Sans",sans-serif;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18)';
+    banner.textContent = '🔄 Nova versão disponível — atualizando...';
+    document.body.appendChild(banner);
+    setTimeout(function() { window.location.reload(); }, 1800);
+  });
 }
 
 // ── PWA: monitorar conexão ──

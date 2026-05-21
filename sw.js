@@ -1,6 +1,6 @@
 // Fluxo Certo 360 — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v46';
+var CACHE_NAME = 'cahu360-v47';
 
 var SHELL_ASSETS = [
   './',
@@ -24,17 +24,23 @@ self.addEventListener('install', function(event) {
   );
 });
 
-// Ativa e remove caches antigos
+// Ativa, remove caches antigos e notifica o app para recarregar
 self.addEventListener('activate', function(event) {
   event.waitUntil(
     caches.keys().then(function(keys) {
-      return Promise.all(
-        keys
-          .filter(function(key) { return key !== CACHE_NAME; })
-          .map(function(key) { return caches.delete(key); })
-      );
-    }).then(function() {
-      return self.clients.claim();
+      var velhos = keys.filter(function(key) { return key !== CACHE_NAME; });
+      var houvePatch = velhos.length > 0;
+      return Promise.all(velhos.map(function(key) { return caches.delete(key); }))
+        .then(function() { return self.clients.claim(); })
+        .then(function() {
+          // Só avisa se foi uma atualização real (havia cache anterior)
+          if (!houvePatch) return;
+          return self.clients.matchAll({ type: 'window' }).then(function(clients) {
+            clients.forEach(function(client) {
+              client.postMessage({ type: 'SW_UPDATED' });
+            });
+          });
+        });
     })
   );
 });
