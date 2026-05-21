@@ -7502,7 +7502,11 @@ function renderDashboardRealtime(bips) {
     }
     return {end:end,modo:modo,total:total,status:status,divs:divs,colTxt:colTxt,resSel:resSel};
   });
-  var upd={'dash-inv-bips':totalBips.toLocaleString('pt-BR'),'dash-inv-concluidos':endsConcl+'/'+enderecos.length,'dash-inv-semcol':endsSemCol,'dash-inv-diverg':endsDiv};
+  // Coletores distintos = IDs únicos que fizeram pelo menos 1 bipagem
+  var coletoresIds={};
+  bips.forEach(function(b){ if(b.coletorId) coletoresIds[b.coletorId]=true; });
+  var totalColetores=Object.keys(coletoresIds).length;
+  var upd={'dash-inv-bips':totalBips.toLocaleString('pt-BR'),'dash-inv-concluidos':endsConcl+'/'+enderecos.length,'dash-inv-coletores':totalColetores,'dash-inv-semcol':endsSemCol,'dash-inv-diverg':endsDiv};
   Object.keys(upd).forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=upd[id]; });
   var etaEl=document.getElementById('dash-inv-eta'); if(etaEl) etaEl.textContent=_calcETA(inv);
   var stEl=document.getElementById('dash-inv-status');
@@ -7597,11 +7601,11 @@ var _excluirInvId = null;
 
 function abrirModalExcluirInv(invId) {
   if (!invId) return;
+  // Tenta cache; se não achar, abre o modal mesmo assim
   var inv = (S.invsCache||[]).find(function(i){ return i.id===invId; });
-  if (!inv) return;
   _excluirInvId = invId;
   var nEl = document.getElementById('excluir-inv-nome');
-  if (nEl) nEl.textContent = inv.nome;
+  if (nEl) nEl.textContent = inv ? inv.nome : invId;
   var sEl = document.getElementById('excluir-inv-senha');
   if (sEl) sEl.value = '';
   var errEl = document.getElementById('excluir-inv-err');
@@ -7621,32 +7625,48 @@ function confirmarExcluirInv() {
   var invId = _excluirInvId; if (!invId) return;
   var senha = (document.getElementById('excluir-inv-senha')||{}).value || '';
   var errEl = document.getElementById('excluir-inv-err');
-  if (!senha) { if(errEl){errEl.textContent='Informe sua senha.';errEl.style.display='block';} return; }
-  var u = S.currentUser;
-  if (!u) { if(errEl){errEl.textContent='Sessão inválida. Faça login novamente.';errEl.style.display='block';} return; }
   var btn = document.getElementById('btn-confirmar-excluir');
+
+  function mostrarErro(msg) {
+    if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
+    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    alert(msg);
+  }
+
+  if (!senha) { mostrarErro('Informe sua senha de acesso.'); return; }
+  var u = S.currentUser;
+  if (!u) { mostrarErro('Sessão inválida. Faça login novamente.'); return; }
+
   if (btn) { btn.textContent = 'Verificando...'; btn.disabled = true; }
   if (errEl) errEl.style.display = 'none';
+
   hashPassword(senha).then(function(senhaHash) {
     var match = isHashed(u.senha) ? (u.senha === senhaHash) : (u.senha === senha);
     if (!match) {
       if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
-      if (errEl) { errEl.textContent = 'Senha incorreta.'; errEl.style.display = 'block'; }
+      if (errEl) { errEl.textContent = 'Senha incorreta. Use sua senha de login.'; errEl.style.display = 'block'; }
       return;
     }
+
     if (btn) btn.textContent = 'Excluindo...';
-    return _deletarInventario(invId).then(function() {
+
+    // Apaga o documento principal primeiro — faz a lista atualizar imediatamente
+    db.collection('inv_inventarios').doc(invId).delete().then(function() {
       fecharModalExcluirInv();
       if (_invAtivo && _invAtivo.id === invId) voltarInvLista();
       loadInventariosFromFirebase(function(){ renderInvList(); renderInvHistorico(); });
+      // Limpa subcoleções em background (best-effort)
+      _limparSubcolecoes(invId);
+    }).catch(function(err) {
+      mostrarErro('Erro ao excluir: ' + (err.message || String(err)));
     });
+
   }).catch(function(err) {
-    if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
-    if (errEl) { errEl.textContent = 'Erro: '+(err.message||err); errEl.style.display='block'; }
+    mostrarErro('Erro ao verificar senha: ' + (err.message || String(err)));
   });
 }
 
-function _deletarInventario(invId) {
+function _limparSubcolecoes(invId) {
   function deletarColecao(nome) {
     function proxLote() {
       return db.collection(nome).where('invId','==',invId).limit(450).get().then(function(snap){
@@ -7658,12 +7678,11 @@ function _deletarInventario(invId) {
         });
       });
     }
-    return proxLote();
+    return proxLote().catch(function(){});
   }
-  return deletarColecao('inv_bipagens')
-    .then(function(){ return deletarColecao('inv_catalogo'); })
-    .then(function(){ return deletarColecao('inv_auditlog'); })
-    .then(function(){ return db.collection('inv_inventarios').doc(invId).delete(); });
+  deletarColecao('inv_bipagens');
+  deletarColecao('inv_catalogo');
+  deletarColecao('inv_auditlog');
 }
 
 // Restaura sessao ao recarregar a pagina
