@@ -882,7 +882,9 @@
           </div>
           <div class="tabs" id="inv-detalhe-tabs">
             <div class="tab on" onclick="switchInvTab('enderecos',this)">Endereços</div>
+            <div class="tab" onclick="switchInvTab('dashboard',this)">Dashboard ●</div>
             <div class="tab" onclick="switchInvTab('bipagens',this)">Bipagens</div>
+            <div class="tab" onclick="switchInvTab('auditoria',this)">Auditoria</div>
             <div class="tab" onclick="switchInvTab('exportar',this)">Exportar</div>
           </div>
 
@@ -893,11 +895,38 @@
               <input type="file" id="inv-import-file" accept=".txt,.csv" style="display:none" onchange="importarCatalogo(event)"/>
             </div>
             <div class="card">
-              <table><thead><tr><th>Endereço</th><th>Coletor Atribuído</th><th>Bipagens</th></tr></thead>
+              <table><thead><tr><th>Endereço</th><th>Modo</th><th>Coletores</th><th>Bipagens</th><th></th></tr></thead>
               <tbody id="inv-end-tbody"></tbody></table>
             </div>
             <div style="margin-top:14px;display:flex;justify-content:flex-end">
               <button class="btn btn-sm" style="color:var(--r);border:1.5px solid var(--r);background:#fff;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" onclick="encerrarInventario(_invAtivo&&_invAtivo.id)">Encerrar Inventário</button>
+            </div>
+          </div>
+
+          <!-- Tab Dashboard (tempo real) -->
+          <div id="inv-tab-dashboard" style="display:none;margin-top:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <div style="font-size:12px;color:var(--t3)">Atualização em tempo real via Firestore</div>
+              <span id="dash-inv-status" style="font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;background:#f0f0f0;color:#666">—</span>
+            </div>
+            <div class="g4" style="margin-bottom:16px">
+              <div class="mc"><div class="lbl">Total Bipagens</div><div class="val" id="dash-inv-bips">0</div></div>
+              <div class="mc"><div class="lbl">Endereços Concluídos</div><div class="val up" id="dash-inv-concluidos">0/0</div></div>
+              <div class="mc"><div class="lbl">Sem Coletor</div><div class="val" id="dash-inv-semcol" style="color:var(--am)">0</div></div>
+              <div class="mc"><div class="lbl">Divergências</div><div class="val" id="dash-inv-diverg" style="color:var(--r)">0</div></div>
+            </div>
+            <div class="card">
+              <table><thead><tr><th>Endereço</th><th>Modo</th><th>Coletores</th><th>Bipagens</th><th>Status</th><th>Divergências</th></tr></thead>
+              <tbody id="dash-inv-tbody"></tbody></table>
+            </div>
+          </div>
+
+          <!-- Tab Auditoria -->
+          <div id="inv-tab-auditoria" style="display:none;margin-top:14px">
+            <div style="font-size:12px;color:var(--t3);margin-bottom:12px">Registro completo de ações: criação, atribuições, rodadas, resoluções de divergência.</div>
+            <div class="card">
+              <table><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th></tr></thead>
+              <tbody id="auditoria-tbody"></tbody></table>
             </div>
           </div>
 
@@ -936,6 +965,52 @@
         <div id="inv-coleta-wrap"></div>
       </div><!-- /panel-inv-coleta -->
 
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GERENCIAR ENDEREÇO (multi-coletor / modo) -->
+<div class="modal-bg" id="modal-inv-gerenciar">
+  <div class="modal-box" style="width:440px">
+    <div class="modal-title" id="modal-ger-end-titulo">Endereço: —</div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);margin-bottom:8px">Modo de contagem</div>
+      <div id="ger-end-modo" style="display:flex;gap:8px"></div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);margin-bottom:8px">Coletores atribuídos</div>
+      <div id="ger-end-coletores"></div>
+    </div>
+    <div id="ger-end-add"></div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-s" onclick="fecharModalGerenciarEnd()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DIVERGÊNCIAS -->
+<div class="modal-bg" id="modal-inv-diverg">
+  <div class="modal-box" style="width:580px;max-height:85vh;overflow-y:auto">
+    <div class="modal-title" id="modal-diverg-titulo">Divergências</div>
+    <div style="font-size:12px;color:var(--t3);margin-bottom:14px">Itens com quantidades diferentes entre Rodada 1 e Rodada 2.</div>
+    <div class="card" style="margin-bottom:14px">
+      <table>
+        <thead>
+          <tr><th>EAN</th><th>Descrição</th><th id="diverg-col-r1">Rodada 1</th><th id="diverg-col-r2">Rodada 2</th><th>Diferença</th></tr>
+        </thead>
+        <tbody id="modal-diverg-tbody"></tbody>
+      </table>
+    </div>
+    <div style="background:var(--gray);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--t2)">Resolução — qual rodada usar na exportação?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="btn-usar-r1" onclick="resolverDivergencia(1)" style="flex:1">✓ Usar Rodada 1</button>
+        <button class="btn btn-sm" id="btn-usar-r2" onclick="resolverDivergencia(2)" style="flex:1">✓ Usar Rodada 2</button>
+      </div>
+      <div id="diverg-resolucao-atual" style="margin-top:8px;font-size:12px;color:var(--g);font-weight:600"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-s" onclick="fecharModalDiverg()">Fechar</button>
     </div>
   </div>
 </div>

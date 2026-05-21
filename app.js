@@ -6469,6 +6469,503 @@ function registrarBipagem() {
   });
 }
 
+// =============================================================
+// FC360 INVENTÁRIO — FASE 2: Controle Real
+// =============================================================
+
+// ── Normalização backward-compat (fase 1 → fase 2) ───────────────
+function _normalizeAtrib(atrib) {
+  if (!atrib) return { modo:'colaboracao', coletores:[] };
+  if (Array.isArray(atrib.coletores)) return atrib;
+  // Formato fase 1: { userId, nome }
+  if (atrib.userId) return { modo:'colaboracao', coletores:[{ userId:atrib.userId, nome:atrib.nome, rodada:1, concluido:false }] };
+  return { modo:'colaboracao', coletores:[] };
+}
+
+// ── Trilha de auditoria ───────────────────────────────────────────
+function _logAuditoria(invId, acao, detalhes) {
+  db.collection('inv_auditlog').add({
+    invId:invId, loja:(S.currentUser&&S.currentUser.loja)||'',
+    userId:S.currentUser?S.currentUser.id:'', userName:S.currentUser?S.currentUser.nome:'',
+    acao:acao, detalhes:detalhes||'',
+    ts:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function(){});
+}
+
+function renderTrilhaAuditoria(invId) {
+  var tbody=document.getElementById('auditoria-tbody');
+  if (!tbody) return;
+  tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--t3)">Carregando...</td></tr>';
+  db.collection('inv_auditlog').where('invId','==',invId).orderBy('ts','desc').limit(200)
+    .get().then(function(snap){
+      if (snap.empty){ tbody.innerHTML='<tr class="erow"><td colspan="4">Nenhum registro ainda.</td></tr>'; return; }
+      var labels={
+        inventario_criado:'Inventário criado', coletor_adicionado:'Coletor adicionado',
+        coletor_removido:'Coletor removido', modo_alterado:'Modo alterado',
+        rodada_finalizada:'Rodada finalizada', divergencia_resolvida:'Divergência resolvida',
+        inventario_encerrado:'Inventário encerrado'
+      };
+      tbody.innerHTML=snap.docs.map(function(d){
+        var r=d.data();
+        var hora=r.ts?new Date(r.ts.seconds*1000).toLocaleString('pt-BR'):'—';
+        return '<tr><td style="font-size:12px;white-space:nowrap">'+hora+'</td><td style="font-size:12px">'+(r.userName||'—')+'</td><td style="font-size:12px;font-weight:600">'+(labels[r.acao]||r.acao)+'</td><td style="font-size:12px;color:var(--t2)">'+r.detalhes+'</td></tr>';
+      }).join('');
+    }).catch(function(){ tbody.innerHTML='<tr class="erow"><td colspan="4">Erro ao carregar.</td></tr>'; });
+}
+
+// ── Dashboard em tempo real ───────────────────────────────────────
+var _invBipListener = null;
+
+function _iniciarDashboardRealtime(invId) {
+  _pararDashboardRealtime();
+  var stEl=document.getElementById('dash-inv-status');
+  if (stEl){ stEl.textContent='Conectando...'; stEl.style.background='#fff8e1'; stEl.style.color='#b7770d'; }
+  _invBipListener=db.collection('inv_bipagens').where('invId','==',invId)
+    .onSnapshot(function(snap){
+      var bips=snap.docs.map(function(d){ return d.data(); });
+      renderDashboardRealtime(bips);
+    },function(){ var e=document.getElementById('dash-inv-status'); if(e){e.textContent='⚠ Erro de conexão';e.style.background='#fdecea';e.style.color='#c0392b';} });
+}
+
+function _pararDashboardRealtime() {
+  if (_invBipListener){ _invBipListener(); _invBipListener=null; }
+}
+
+function renderDashboardRealtime(bips) {
+  if (!_invAtivo) return;
+  var enderecos=_invAtivo.enderecos||[];
+  var atribs=_invAtivo.atribuicoes||{};
+  var resolucoes=_invAtivo.resolucoes||{};
+
+  // Agrupar por endereço + rodada
+  var bipMap={};
+  bips.forEach(function(b){
+    if (!bipMap[b.endereco]) bipMap[b.endereco]={1:[],2:[]};
+    var r=b.rodada||1;
+    if (!bipMap[b.endereco][r]) bipMap[b.endereco][r]=[];
+    bipMap[b.endereco][r].push(b);
+  });
+
+  var totalBips=bips.length, endsConcl=0, endsDiv=0, endsSemCol=0;
+
+  var rows=enderecos.map(function(end){
+    var atrib=_normalizeAtrib(atribs[end]);
+    var modo=atrib.modo, cols=atrib.coletores||[];
+    var em=bipMap[end]||{};
+    var total=(em[1]||[]).length+(em[2]||[]).length;
+    var status='pendente', divs=[], resSel=resolucoes[end]||null;
+    var colTxt=cols.length?cols.map(function(c){ return c.nome+(modo==='auditoria'?' R'+c.rodada:'')+(c.concluido?' ✓':''); }).join(', '):'—';
+
+    if (!cols.length){ status='sem-coletor'; endsSemCol++; }
+    else if (modo==='auditoria'){
+      var r1=cols.find(function(c){ return c.rodada===1; }), r2=cols.find(function(c){ return c.rodada===2; });
+      if (r1&&r2){
+        if (r1.concluido&&r2.concluido){
+          divs=_calcDivergencias(em[1]||[],em[2]||[]);
+          if (divs.length){ status=resSel?'resolvido':'divergente'; if(!resSel)endsDiv++; else endsConcl++; }
+          else{ status='concluido'; endsConcl++; }
+        } else if (total>0) status='em-andamento';
+        else status='aguardando';
+      }
+    } else {
+      var allDone=cols.length&&cols.every(function(c){ return c.concluido; });
+      if (allDone){ status='concluido'; endsConcl++; }
+      else if (total>0) status='em-andamento';
+      else status='aguardando';
+    }
+    return {end:end,modo:modo,total:total,status:status,divs:divs,colTxt:colTxt,resSel:resSel};
+  });
+
+  // KPIs
+  var upd={
+    'dash-inv-bips':totalBips.toLocaleString('pt-BR'),
+    'dash-inv-concluidos':endsConcl+'/'+enderecos.length,
+    'dash-inv-semcol':endsSemCol,
+    'dash-inv-diverg':endsDiv
+  };
+  Object.keys(upd).forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=upd[id]; });
+  var stEl=document.getElementById('dash-inv-status');
+  if (stEl){ stEl.textContent='🟢 Ao vivo'; stEl.style.background='#d1f0e0'; stEl.style.color='#1a5c34'; }
+
+  var sbMap={
+    'pendente':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#f0f0f0;color:#666">Pendente</span>',
+    'sem-coletor':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fff3e0;color:#e65100">Sem coletor</span>',
+    'aguardando':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fff8e1;color:#b7770d">Aguardando</span>',
+    'em-andamento':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#e8f5ee;color:#1a7a4a">Em andamento</span>',
+    'concluido':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#d1f0e0;color:#1a5c34">✓ Concluído</span>',
+    'resolvido':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#d1f0e0;color:#1a5c34">✓ Resolvido</span>',
+    'divergente':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fdecea;color:#c0392b">⚠ Divergente</span>'
+  };
+
+  var tbody=document.getElementById('dash-inv-tbody');
+  if (!tbody) return;
+  tbody.innerHTML=rows.map(function(r){
+    var mb=r.modo==='auditoria'
+      ?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#ede9fe;color:#5b21b6">AUDITORIA</span>'
+      :'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5ee;color:#1a5c34">COLABR.</span>';
+    var divCell=r.divs.length
+      ?'<button class="btn btn-s btn-sm" onclick="verDivergencias(\''+r.end+'\')">'+r.divs.length+' itens</button>'+(r.resSel?'<span style="font-size:11px;font-weight:700;color:var(--g);margin-left:4px">R'+r.resSel.rodada+'✓</span>':'')
+      :'—';
+    return '<tr><td><strong>'+r.end+'</strong></td><td>'+mb+'</td><td style="font-size:12px;color:var(--t2)">'+r.colTxt+'</td><td style="text-align:center;font-weight:700">'+r.total+'</td><td>'+(sbMap[r.status]||r.status)+'</td><td>'+divCell+'</td></tr>';
+  }).join('');
+}
+
+function _calcDivergencias(r1Bips,r2Bips) {
+  var m1={},m2={};
+  r1Bips.forEach(function(b){ m1[b.ean]=(m1[b.ean]||0)+b.qty; });
+  r2Bips.forEach(function(b){ m2[b.ean]=(m2[b.ean]||0)+b.qty; });
+  var eans=Object.keys(Object.assign({},m1,m2));
+  return eans.filter(function(e){ return (m1[e]||0)!==(m2[e]||0); })
+    .map(function(e){ return {ean:e,qty1:m1[e]||0,qty2:m2[e]||0,diff:Math.abs((m1[e]||0)-(m2[e]||0))}; })
+    .sort(function(a,b){ return b.diff-a.diff; });
+}
+
+// ── Modal divergências ────────────────────────────────────────────
+var _divEndAtual = null;
+
+function verDivergencias(endereco) {
+  if (!_invAtivo) return;
+  _divEndAtual=endereco;
+  var invId=_invAtivo.id;
+  loadBipagensByInv(invId,function(bips){
+    loadCatalogoByInv(invId,function(cat){
+      var r1=bips.filter(function(b){ return b.endereco===endereco&&(b.rodada||1)===1; });
+      var r2=bips.filter(function(b){ return b.endereco===endereco&&(b.rodada||1)===2; });
+      var divs=_calcDivergencias(r1,r2);
+      var atrib=_normalizeAtrib((_invAtivo.atribuicoes||{})[endereco]);
+      var c1=atrib.coletores.find(function(c){ return c.rodada===1; })||{};
+      var c2=atrib.coletores.find(function(c){ return c.rodada===2; })||{};
+      // Atualizar headers de colunas
+      var h1=document.getElementById('diverg-col-r1'),h2=document.getElementById('diverg-col-r2');
+      if (h1) h1.textContent='R1: '+(c1.nome||'—'); if (h2) h2.textContent='R2: '+(c2.nome||'—');
+      document.getElementById('modal-diverg-titulo').textContent='Divergências — Endereço '+endereco;
+      var tbody=document.getElementById('modal-diverg-tbody');
+      if (tbody){
+        if (!divs.length){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--g);padding:20px">✓ Sem divergências</td></tr>'; }
+        else { tbody.innerHTML=divs.map(function(d){
+          var p=cat[d.ean]||{};
+          return '<tr><td style="font-family:monospace;font-size:12px">'+d.ean+'</td><td style="font-size:12px">'+(p.desc||'—')+'</td><td style="text-align:center;font-weight:700">'+d.qty1+'</td><td style="text-align:center;font-weight:700">'+d.qty2+'</td><td style="text-align:center;color:var(--r);font-weight:700">'+d.diff+'</td></tr>';
+        }).join(''); }
+      }
+      // Mostrar resolução atual
+      var resAtual=(_invAtivo.resolucoes||{})[endereco];
+      var resEl=document.getElementById('diverg-resolucao-atual');
+      if (resEl) resEl.textContent=resAtual?'Resolução atual: Rodada '+resAtual.rodada+' ('+(resAtual.resolvidoPor||'admin')+')':'';
+      // Atualizar botões R1/R2 com nomes
+      var b1=document.getElementById('btn-usar-r1'),b2=document.getElementById('btn-usar-r2');
+      if (b1) b1.textContent='✓ Usar Rodada 1'+(c1.nome?' ('+c1.nome+')':'');
+      if (b2) b2.textContent='✓ Usar Rodada 2'+(c2.nome?' ('+c2.nome+')':'');
+      document.getElementById('modal-inv-diverg').style.display='flex';
+    });
+  });
+}
+
+function fecharModalDiverg() { document.getElementById('modal-inv-diverg').style.display='none'; }
+
+function resolverDivergencia(rodada) {
+  if (!_invAtivo||!_divEndAtual) return;
+  var invId=_invAtivo.id, end=_divEndAtual;
+  var atrib=_normalizeAtrib((_invAtivo.atribuicoes||{})[end]);
+  var coletor=atrib.coletores.find(function(c){ return c.rodada===rodada; })||{};
+  var resObj={ rodada:rodada, resolvidoPor:S.currentUser?S.currentUser.nome:'', resolvidoEm:new Date().toISOString(), coletorNome:coletor.nome||'' };
+  var update={}; update['resolucoes.'+end]=resObj;
+  db.collection('inv_inventarios').doc(invId).update(update).then(function(){
+    if (!_invAtivo.resolucoes) _invAtivo.resolucoes={};
+    _invAtivo.resolucoes[end]=resObj;
+    var idx=(S.invsCache||[]).findIndex(function(i){ return i.id===invId; });
+    if (idx>=0) S.invsCache[idx].resolucoes=Object.assign({},_invAtivo.resolucoes);
+    var resEl=document.getElementById('diverg-resolucao-atual');
+    if (resEl) resEl.textContent='✓ Resolução salva: Rodada '+rodada+(coletor.nome?' ('+coletor.nome+')':'');
+    _logAuditoria(invId,'divergencia_resolvida','Endereço '+end+' → Rodada '+rodada+' escolhida pelo admin');
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+// ── Modal gerenciar endereço (multi-coletor) ──────────────────────
+var _gerEndAtual=null, _gerInvIdAtual=null;
+
+function abrirModalGerenciarEnd(invId,end) {
+  _gerInvIdAtual=invId; _gerEndAtual=end;
+  document.getElementById('modal-ger-end-titulo').textContent='Endereço: '+end;
+  renderModalGerEnd();
+  document.getElementById('modal-inv-gerenciar').style.display='flex';
+}
+function fecharModalGerenciarEnd() { document.getElementById('modal-inv-gerenciar').style.display='none'; _gerEndAtual=null; _gerInvIdAtual=null; }
+
+function renderModalGerEnd() {
+  if (!_invAtivo||!_gerEndAtual) return;
+  var invId=_gerInvIdAtual, end=_gerEndAtual;
+  var atrib=_normalizeAtrib((_invAtivo.atribuicoes||{})[end]);
+  var modo=atrib.modo, cols=atrib.coletores||[];
+
+  var modoEl=document.getElementById('ger-end-modo');
+  if (modoEl) modoEl.innerHTML=
+    '<button class="btn btn-sm" style="'+(modo==='colaboracao'?'background:#111;color:#fff;border-color:#111':'')+'padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1.5px solid var(--gray2);" onclick="setModoEndereco(\''+invId+'\',\''+end+'\',\'colaboracao\')">Colaboração</button>'+
+    '<button class="btn btn-sm" style="'+(modo==='auditoria'?'background:#5b21b6;color:#fff;border-color:#5b21b6':'')+'padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1.5px solid var(--gray2);" onclick="setModoEndereco(\''+invId+'\',\''+end+'\',\'auditoria\')">Auditoria</button>';
+
+  var listEl=document.getElementById('ger-end-coletores');
+  if (listEl){
+    if (!cols.length){ listEl.innerHTML='<div style="color:var(--t3);font-size:13px;padding:6px 0">Nenhum coletor atribuído</div>'; }
+    else { listEl.innerHTML=cols.map(function(c){
+      var rb=modo==='auditoria'?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#ede9fe;color:#5b21b6;margin-left:5px">R'+c.rodada+'</span>':'';
+      var cb=c.concluido?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#d1f0e0;color:#1a5c34;margin-left:4px">✓</span>':'';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--gray);border-radius:8px;margin-bottom:6px">'+
+        '<span style="font-size:13px;font-weight:600">'+c.nome+rb+cb+'</span>'+
+        '<button onclick="removerColetorEnd(\''+invId+'\',\''+end+'\',\''+c.userId+'\')" style="background:none;border:none;cursor:pointer;color:var(--r);font-size:18px;padding:0 4px;line-height:1">×</button>'+
+      '</div>';
+    }).join(''); }
+  }
+
+  var addEl=document.getElementById('ger-end-add');
+  if (addEl){
+    var maxC=modo==='auditoria'?2:6;
+    var users=(S.usersCache||[]).filter(function(u){ return u.ativo!==false; });
+    var assigned=cols.map(function(c){ return c.userId; });
+    var avail=users.filter(function(u){ return assigned.indexOf(u.id)<0; });
+    if (cols.length>=maxC){ addEl.innerHTML='<div style="font-size:12px;color:var(--t3);padding:4px 0">'+(modo==='auditoria'?'Auditoria: máx. 2 coletores.':'Limite atingido.')+'</div>'; }
+    else { addEl.innerHTML='<div style="display:flex;gap:8px;align-items:center;margin-top:10px"><select id="ger-end-select" style="flex:1;padding:8px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"><option value="">Selecionar coletor...</option>'+avail.map(function(u){ return '<option value="'+u.id+'">'+u.nome+'</option>'; }).join('')+'</select><button class="btn btn-p btn-sm" onclick="adicionarColetorEnd(\''+invId+'\',\''+end+'\')">+ Adicionar</button></div>'; }
+  }
+}
+
+function setModoEndereco(invId,end,modo) {
+  var atrib=_normalizeAtrib((_invAtivo&&_invAtivo.atribuicoes&&_invAtivo.atribuicoes[end])||null);
+  if (modo==='auditoria'&&atrib.coletores.length>2){ alert('Auditoria suporta no máximo 2 coletores. Remova os excedentes primeiro.'); return; }
+  var novos=atrib.coletores.map(function(c,i){ return Object.assign({},c,{rodada:modo==='auditoria'?i+1:1}); });
+  var novoAtrib={modo:modo,coletores:novos};
+  var update={}; update['atribuicoes.'+end]=novoAtrib;
+  db.collection('inv_inventarios').doc(invId).update(update).then(function(){
+    if (_invAtivo){ if (!_invAtivo.atribuicoes) _invAtivo.atribuicoes={}; _invAtivo.atribuicoes[end]=novoAtrib; }
+    var idx=(S.invsCache||[]).findIndex(function(i){ return i.id===invId; }); if (idx>=0) S.invsCache[idx].atribuicoes=Object.assign({},_invAtivo.atribuicoes);
+    renderModalGerEnd(); renderInvEnderecos();
+    _logAuditoria(invId,'modo_alterado','Endereço '+end+' → '+modo);
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+function adicionarColetorEnd(invId,end) {
+  var sel=document.getElementById('ger-end-select'); if (!sel||!sel.value) return;
+  var uid=sel.value, user=(S.usersCache||[]).find(function(u){ return u.id===uid; }); if (!user) return;
+  var atrib=_normalizeAtrib((_invAtivo&&_invAtivo.atribuicoes&&_invAtivo.atribuicoes[end])||null);
+  if (atrib.coletores.find(function(c){ return c.userId===uid; })){ alert('Já atribuído.'); return; }
+  var max=atrib.modo==='auditoria'?2:6;
+  if (atrib.coletores.length>=max){ alert(atrib.modo==='auditoria'?'Auditoria: máx. 2 coletores.':'Limite atingido.'); return; }
+  var novR=atrib.modo==='auditoria'?atrib.coletores.length+1:1;
+  var novos=atrib.coletores.concat([{userId:user.id,nome:user.nome,rodada:novR,concluido:false}]);
+  var novoAtrib={modo:atrib.modo,coletores:novos};
+  var update={}; update['atribuicoes.'+end]=novoAtrib;
+  db.collection('inv_inventarios').doc(invId).update(update).then(function(){
+    if (_invAtivo){ if (!_invAtivo.atribuicoes) _invAtivo.atribuicoes={}; _invAtivo.atribuicoes[end]=novoAtrib; }
+    var idx=(S.invsCache||[]).findIndex(function(i){ return i.id===invId; }); if (idx>=0) S.invsCache[idx].atribuicoes=Object.assign({},_invAtivo.atribuicoes);
+    renderModalGerEnd(); renderInvEnderecos(); atualizarNavColeta();
+    _logAuditoria(invId,'coletor_adicionado','Endereço '+end+': '+user.nome+' (R'+novR+')');
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+function removerColetorEnd(invId,end,userId) {
+  if (!confirm('Remover este coletor?')) return;
+  var atrib=_normalizeAtrib((_invAtivo&&_invAtivo.atribuicoes&&_invAtivo.atribuicoes[end])||null);
+  var novos=atrib.coletores.filter(function(c){ return c.userId!==userId; });
+  if (atrib.modo==='auditoria') novos=novos.map(function(c,i){ return Object.assign({},c,{rodada:i+1}); });
+  var novoAtrib={modo:atrib.modo,coletores:novos};
+  var update={}; update['atribuicoes.'+end]=novoAtrib;
+  db.collection('inv_inventarios').doc(invId).update(update).then(function(){
+    if (_invAtivo){ if (!_invAtivo.atribuicoes) _invAtivo.atribuicoes={}; _invAtivo.atribuicoes[end]=novoAtrib; }
+    var idx=(S.invsCache||[]).findIndex(function(i){ return i.id===invId; }); if (idx>=0) S.invsCache[idx].atribuicoes=Object.assign({},_invAtivo.atribuicoes);
+    renderModalGerEnd(); renderInvEnderecos(); atualizarNavColeta();
+    _logAuditoria(invId,'coletor_removido','Endereço '+end+': userId '+userId);
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+// ── Sobrescrever funções fase 1 (agora com suporte fase 2) ────────
+
+function renderInvEnderecos() {
+  if (!_invAtivo) return;
+  var invId=_invAtivo.id, enderecos=_invAtivo.enderecos||[], atribs=_invAtivo.atribuicoes||{};
+  var tbody=document.getElementById('inv-end-tbody'); if (!tbody) return;
+  tbody.innerHTML=enderecos.map(function(end){
+    var atrib=_normalizeAtrib(atribs[end]), modo=atrib.modo, cols=atrib.coletores||[];
+    var mb=modo==='auditoria'
+      ?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#ede9fe;color:#5b21b6">AUDITORIA</span>'
+      :'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5ee;color:#1a5c34">COLABR.</span>';
+    var colTxt=cols.length?cols.map(function(c){ return c.nome+(modo==='auditoria'?' R'+c.rodada:'')+(c.concluido?' ✓':''); }).join(', '):'<span style="color:var(--t3)">—</span>';
+    return '<tr><td><strong>'+end+'</strong></td><td>'+mb+'</td><td style="font-size:12px">'+colTxt+'</td><td id="inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')+'">—</td><td><button class="btn btn-s btn-sm" onclick="abrirModalGerenciarEnd(\''+invId+'\',\''+end+'\')">Gerenciar</button></td></tr>';
+  }).join('');
+  loadBipagensByInv(invId,function(bips){
+    var cnt={}; bips.forEach(function(b){ cnt[b.endereco]=(cnt[b.endereco]||0)+1; });
+    enderecos.forEach(function(end){ var el=document.getElementById('inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')); if (el) el.textContent=cnt[end]||0; });
+  });
+}
+
+function switchInvTab(tab,btn) {
+  document.querySelectorAll('#inv-detalhe-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
+  ['enderecos','dashboard','bipagens','auditoria','exportar'].forEach(function(t){ var el=document.getElementById('inv-tab-'+t); if (el) el.style.display=t===tab?'block':'none'; });
+  if (tab!=='dashboard') _pararDashboardRealtime();
+  if (tab==='enderecos') renderInvEnderecos();
+  if (tab==='dashboard') _iniciarDashboardRealtime(_invAtivo.id);
+  if (tab==='bipagens'){ var f=document.getElementById('inv-bip-filter'); renderInvBipagens(f&&f.value||null); }
+  if (tab==='auditoria') renderTrilhaAuditoria(_invAtivo.id);
+}
+
+function voltarInvLista() {
+  _pararDashboardRealtime();
+  _invAtivo=null;
+  document.getElementById('inv-lista-wrap').style.display='block';
+  document.getElementById('inv-detalhe-wrap').style.display='none';
+}
+
+function _encontrarAtribuicao() {
+  var uid=S.currentUser?S.currentUser.id:null; if (!uid) return null;
+  var invs=S.invsCache||[];
+  for (var i=0;i<invs.length;i++){
+    var inv=invs[i]; if (inv.status!=='aberto') continue;
+    var atribs=inv.atribuicoes||{}, ends=Object.keys(atribs);
+    for (var j=0;j<ends.length;j++){
+      var end=ends[j], atrib=_normalizeAtrib(atribs[end]);
+      var ci=atrib.coletores.find(function(c){ return c.userId===uid; });
+      if (ci) return {inv:inv,endereco:end,rodada:ci.rodada||1,modo:atrib.modo,concluido:ci.concluido||false};
+    }
+  }
+  return null;
+}
+
+function finalizarRodada() {
+  if (!_invColetaAtual) return;
+  var info=_invColetaAtual, invId=info.inv.id, end=info.endereco, rodada=info.rodada||1;
+  if (!confirm('Finalizar sua contagem do endereço '+end+'? Não será possível bipar mais itens.')) return;
+  var atrib=_normalizeAtrib((info.inv.atribuicoes||{})[end]);
+  var novos=atrib.coletores.map(function(c){ return (c.userId===(S.currentUser&&S.currentUser.id)&&c.rodada===rodada)?Object.assign({},c,{concluido:true}):c; });
+  var novoAtrib={modo:atrib.modo,coletores:novos};
+  var update={}; update['atribuicoes.'+end]=novoAtrib;
+  db.collection('inv_inventarios').doc(invId).update(update).then(function(){
+    info.inv.atribuicoes[end]=novoAtrib; info.concluido=true;
+    var idx=(S.invsCache||[]).findIndex(function(i){ return i.id===invId; }); if (idx>=0) S.invsCache[idx].atribuicoes=Object.assign({},info.inv.atribuicoes);
+    _logAuditoria(invId,'rodada_finalizada','Endereço '+end+', Rodada '+rodada+' — '+(S.currentUser?S.currentUser.nome:''));
+    renderColeta();
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+function renderColeta() {
+  var wrap=document.getElementById('inv-coleta-wrap'); if (!wrap) return;
+  var info=_encontrarAtribuicao();
+  if (!info){
+    wrap.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--t3)"><div style="font-size:48px;margin-bottom:16px">📦</div><div style="font-size:16px;font-weight:600;margin-bottom:8px">Sem coleta atribuída</div><div style="font-size:13px">Aguarde o administrador atribuir um endereço para você.</div></div>';
+    return;
+  }
+  _invColetaAtual=info;
+  var end=info.endereco, inv=info.inv, rodada=info.rodada||1, modo=info.modo||'colaboracao', concluido=info.concluido||false;
+  var mb=modo==='auditoria'
+    ?'<span style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#ede9fe;color:#5b21b6">Auditoria — Rodada '+rodada+'</span>'
+    :'<span style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#e8f5ee;color:#1a5c34">Colaboração</span>';
+  var scanHtml=concluido
+    ?'<div style="background:#f9fbe7;border:1.5px solid #c8e6c9;border-radius:12px;padding:20px;text-align:center;margin-top:16px"><div style="font-size:24px;margin-bottom:8px">✅</div><div style="font-size:15px;font-weight:700;color:#1a5c34;margin-bottom:4px">Contagem finalizada</div><div style="font-size:13px;color:var(--t2)">Sua rodada foi encerrada. Aguarde o resultado do administrador.</div></div>'
+    :'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">'+
+        '<div style="flex:1;min-width:200px">'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">EAN / Código de Barras</label>'+
+          '<input id="inv-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" onkeydown="if(event.key===\'Enter\')registrarBipagem()"/>'+
+          '<div id="inv-desc-preview" style="font-size:12px;color:var(--t3);margin-top:5px;min-height:18px"></div>'+
+        '</div>'+
+        '<div style="width:80px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
+          '<input id="inv-qty-input" type="number" value="1" min="1" style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\')registrarBipagem()"/></div>'+
+        '<button onclick="registrarBipagem()" style="padding:13px 22px;background:#FFC600;color:#111;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Registrar</button>'+
+      '</div>'+
+      '<div style="margin-top:12px;display:flex;justify-content:flex-end">'+
+        '<button onclick="finalizarRodada()" style="padding:8px 18px;background:#fff;border:1.5px solid var(--r);color:var(--r);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Finalizar Contagem</button>'+
+      '</div>';
+
+  wrap.innerHTML=
+    '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">'+
+        '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3)">Endereço</div>'+
+          '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+end+'</div>'+
+          '<div style="margin-top:4px">'+mb+'</div></div>'+
+        '<div style="text-align:right"><div style="font-size:12px;color:var(--t3);max-width:180px">'+inv.nome+'</div>'+
+          '<div id="inv-seq-label" style="font-size:13px;font-weight:700;color:var(--g);margin-top:4px">Seq: —</div></div>'+
+      '</div>'+scanHtml+
+    '</div>'+
+    '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh)">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Minhas bipagens — Endereço '+end+(modo==='auditoria'?' (Rodada '+rodada+')':'')+'</div>'+
+      '<div id="inv-ultimas-wrap"><div style="text-align:center;padding:24px;color:var(--t3);font-size:13px">Carregando...</div></div>'+
+    '</div>';
+
+  if (!concluido){
+    loadCatalogoByInv(inv.id,function(cat){
+      var ei=document.getElementById('inv-ean-input');
+      if (ei){
+        ei.addEventListener('input',function(){ var p=cat[this.value.trim()]||{}; var pr=document.getElementById('inv-desc-preview'); if(pr)pr.textContent=p.desc?'📦 '+p.desc+(p.un?' — '+p.un:''):''; });
+        setTimeout(function(){ ei.focus(); },150);
+      }
+    });
+  }
+  _carregarUltimasBipagens(inv.id,end,rodada,modo);
+}
+
+function _carregarUltimasBipagens(invId,endereco,rodada,modo) {
+  var q=db.collection('inv_bipagens').where('invId','==',invId).where('endereco','==',endereco);
+  if (modo==='auditoria'&&rodada) q=q.where('rodada','==',rodada);
+  q.orderBy('seq','desc').limit(20).get().then(function(snap){
+    var bips=snap.docs.map(function(d){ return d.data(); });
+    var mx=bips.length?Math.max.apply(null,bips.map(function(b){ return b.seq; })):0;
+    _nextSeq=mx+1;
+    var sl=document.getElementById('inv-seq-label'); if(sl) sl.textContent='Próx. seq: '+_nextSeq;
+    _renderUltimasBipagens(bips,invId);
+  }).catch(function(){ _nextSeq=1; _renderUltimasBipagens([],invId); });
+}
+
+function registrarBipagem() {
+  if (_bipRegistrando) return;
+  if (!_invColetaAtual) return;
+  if (_invColetaAtual.concluido){ alert('Você já finalizou sua contagem.'); return; }
+  var ei=document.getElementById('inv-ean-input'), qi=document.getElementById('inv-qty-input');
+  if (!ei||!qi) return;
+  var ean=ei.value.trim(), qty=parseInt(qi.value)||1;
+  if (!ean){ ei.focus(); return; }
+  if (qty<1) qty=1;
+  var inv=_invColetaAtual.inv;
+  if (inv.status!=='aberto'){ alert('Inventário encerrado.'); return; }
+  var end=_invColetaAtual.endereco, rodada=_invColetaAtual.rodada||1, modo=_invColetaAtual.modo||'colaboracao', seq=_nextSeq;
+  _bipRegistrando=true;
+  db.collection('inv_bipagens').add({
+    invId:inv.id, loja:inv.loja||'', endereco:end, seq:seq, ean:ean, qty:qty,
+    rodada:rodada, modo:modo,
+    coletorId:S.currentUser?S.currentUser.id:'', coletorNome:S.currentUser?S.currentUser.nome:'',
+    ts:firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){
+    db.collection('inv_inventarios').doc(inv.id).update({totalBipagens:firebase.firestore.FieldValue.increment(1)}).catch(function(){});
+    _nextSeq++;
+    var sl=document.getElementById('inv-seq-label'); if(sl) sl.textContent='Próx. seq: '+_nextSeq;
+    ei.value=''; qi.value='1';
+    var pr=document.getElementById('inv-desc-preview'); if(pr) pr.textContent='';
+    ei.focus();
+    _carregarUltimasBipagens(inv.id,end,rodada,modo);
+    _bipRegistrando=false;
+  }).catch(function(e){ _bipRegistrando=false; alert('Erro: '+e.message); });
+}
+
+// ── Atualizar exportarTxtErp para usar resolução ──────────────────
+function exportarTxtErp() {
+  if (!_invAtivo) return;
+  var resolucoes=_invAtivo.resolucoes||{};
+  loadBipagensByInv(_invAtivo.id,function(bips){
+    loadCatalogoByInv(_invAtivo.id,function(cat){
+      // Filtrar bipagens: para endereços com resolução de auditoria, usar apenas a rodada escolhida
+      var bipsFiltradas=bips.filter(function(b){
+        var res=resolucoes[b.endereco];
+        if (!res) return true; // sem resolução: incluir tudo (colaboração ou sem divergência)
+        return (b.rodada||1)===res.rodada;
+      });
+      var lines=['ENDERECO;EAN;QUANTIDADE;SEQUENCIAL;DESCRICAO;UNIDADE;RODADA'];
+      bipsFiltradas.forEach(function(b){
+        var p=cat[b.ean]||{};
+        lines.push([b.endereco,b.ean,b.qty,b.seq,p.desc||'',p.un||'',b.rodada||1].join(';'));
+      });
+      var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a'); a.href=url;
+      a.download=(_invAtivo.nome||'inventario').replace(/[^a-z0-9]/gi,'_')+'_ERP.txt';
+      a.click(); setTimeout(function(){ URL.revokeObjectURL(url); },2000);
+    });
+  });
+}
+
 // Restaura sessao ao recarregar a pagina
 // (script e defer — DOM ja esta pronto aqui, sem precisar de DOMContentLoaded)
 (function() {
