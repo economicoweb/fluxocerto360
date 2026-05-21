@@ -555,6 +555,15 @@
     }
     .plan-card.featured .plan-cta:hover { background: #1a1a1a; }
     .plans-note { text-align: center; margin-top: 32px; font-size: 13px; color: rgba(255,255,255,.35); }
+    .plans-highlight {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: rgba(255,198,0,.1); border: 1px solid rgba(255,198,0,.25);
+      border-radius: 14px; padding: 14px 20px;
+      margin-bottom: 36px; font-size: 13.5px; color: rgba(255,255,255,.75);
+      line-height: 1.55;
+    }
+    .plans-highlight strong { color: #fff; }
+    .plans-highlight span:first-child { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
 
     /* ── DEPOIMENTOS ── */
     .testimonials-grid {
@@ -1028,6 +1037,12 @@
       <h2 class="section-title" style="color:#fff">Escolha o plano ideal<br/>para o seu negócio</h2>
       <p class="section-sub" style="margin:0 auto">Sem fidelidade. Cancele quando quiser. Suporte incluso em todos os planos.</p>
     </div>
+    <!-- faixa de destaque -->
+    <div class="plans-highlight fade-up">
+      <span>📱</span>
+      <span><strong>Usuários e dispositivos ilimitados em todos os planos.</strong> Pague pela loja — use em celular, tablet, retaguarda ou qualquer aparelho, sem custo extra.</span>
+    </div>
+
     <div class="plans-grid">
 
       <!-- Starter -->
@@ -1043,7 +1058,8 @@
         <div class="plan-divider"></div>
         <ul class="plan-features">
           <li><span class="check">✓</span>1 loja</li>
-          <li><span class="check">✓</span>Até 8 operadores</li>
+          <li><span class="check">✓</span>Usuários ilimitados</li>
+          <li><span class="check">✓</span>Sem custo por dispositivo</li>
           <li><span class="check">✓</span>Checklists ilimitados</li>
           <li><span class="check">✓</span>Planos de ação</li>
           <li><span class="check">✓</span>Relatórios em PDF</li>
@@ -1066,7 +1082,8 @@
         <div class="plan-divider"></div>
         <ul class="plan-features">
           <li><span class="check">✓</span>Até 5 lojas</li>
-          <li><span class="check">✓</span>Operadores ilimitados</li>
+          <li><span class="check">✓</span>Usuários ilimitados</li>
+          <li><span class="check">✓</span>Sem custo por dispositivo</li>
           <li><span class="check">✓</span>Tudo do Starter</li>
           <li><span class="check">✓</span>Central de Resultados completa</li>
           <li><span class="check">✓</span>Ranking de lojas e operadores</li>
@@ -1090,7 +1107,8 @@
         <div class="plan-divider"></div>
         <ul class="plan-features">
           <li><span class="check">✓</span>Lojas ilimitadas</li>
-          <li><span class="check">✓</span>Operadores ilimitados</li>
+          <li><span class="check">✓</span>Usuários ilimitados</li>
+          <li><span class="check">✓</span>Sem custo por dispositivo</li>
           <li><span class="check">✓</span>Tudo do Pro</li>
           <li><span class="check">✓</span>Relatório corporativo multi-loja</li>
           <li><span class="check">✓</span>Customização avançada</li>
