@@ -7775,6 +7775,15 @@ function _limparSubcolecoes(invId) {
   deletarColecao('inv_auditlog');
 }
 
+// ── Override atualizarNavColeta — mostra coleta para todos se há inv aberto ─
+function atualizarNavColeta() {
+  var colItem=document.getElementById('nav-inv-coleta'); if(!colItem) return;
+  var sec=document.getElementById('sb-inv-sec');
+  var temAberto=(S.invsCache||[]).some(function(i){ return i.status==='aberto'; });
+  colItem.style.display=temAberto?'flex':'none';
+  if(sec) sec.style.display=temAberto?'block':'none';
+}
+
 // ── Override registrarBipagem — usa ID de coletor do localStorage ─────────
 function registrarBipagem() {
   if (_bipRegistrando) return;
