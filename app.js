@@ -6301,6 +6301,11 @@ function encerrarInventario(invId) {
         _invAtivo.status='encerrado';
         var statusEl = document.getElementById('inv-detalhe-status');
         if (statusEl) { statusEl.textContent='ENCERRADO'; statusEl.style.background='#f0f0f0'; statusEl.style.color='#666'; }
+        var actEl=document.getElementById('inv-end-actions');
+        if(actEl) actEl.style.display='none';
+        var corrBtn=document.getElementById('bip-btn-correcao');
+        if(corrBtn) corrBtn.style.display='none';
+        renderInvEnderecos();
       }
       atualizarNavColeta();
     });
@@ -7395,7 +7400,6 @@ function _histRenderLista() {
       '</div>'+
       '<div style="margin-top:12px;display:flex;gap:8px">'+
         '<button class="btn btn-p btn-sm" onclick="_abrirHistInv(\''+inv.id+'\')">Ver Detalhes</button>'+
-        '<button class="btn btn-sm" style="background:var(--r);color:#fff;border:1.5px solid var(--r);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="abrirModalExcluirInv(\''+inv.id+'\')">🗑 Excluir</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -8022,7 +8026,10 @@ function renderDashboardRealtime(bips) {
   Object.keys(upd).forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=upd[id]; });
   var etaEl=document.getElementById('dash-inv-eta'); if(etaEl) etaEl.textContent=_calcETA(inv);
   var stEl=document.getElementById('dash-inv-status');
-  if(stEl){ stEl.textContent='🟢 Ao vivo'; stEl.style.background='#d1f0e0'; stEl.style.color='#1a5c34'; }
+  if(stEl){
+    if(inv.status==='encerrado'){ stEl.textContent='Encerrado'; stEl.style.background='#f0f0f0'; stEl.style.color='#666'; }
+    else { stEl.textContent='🟢 Ao vivo'; stEl.style.background='#d1f0e0'; stEl.style.color='#1a5c34'; }
+  }
   var sbMap={
     'pendente':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#f0f0f0;color:#666">Pendente</span>',
     'sem-coletor':'<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fff3e0;color:#e65100">Sem coletor</span>',
