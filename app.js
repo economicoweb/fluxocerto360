@@ -6439,7 +6439,7 @@ function renderCorrecaoBipagem() {
           '<div id="corr-preview" style="font-size:24px;font-weight:800;color:var(--t)">—</div>'+
         '</div>'+
         '<div id="corr-preview-label" style="font-size:12px;color:var(--t2);margin-bottom:14px"></div>'+
-        '<button onclick="aplicarCorrecaoBipagem()" style="width:100%;padding:14px;background:var(--y);color:#111;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar Correção</button>'+
+        '<button onclick="aplicarCorrecaoBipagem()" style="width:100%;padding:14px;background:var(--g);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px">✓ Aplicar Correção</button>'+
       '</div>'+
       '<div id="corr-msg" style="min-height:20px;font-size:13px;font-weight:600;margin-top:10px"></div>'+
     '</div>';
