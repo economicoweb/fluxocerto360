@@ -8478,35 +8478,40 @@ function renderProdutividade() {
   if (!_invAtivo) return;
   var wrap=document.getElementById('inv-produtividade-wrap'); if(!wrap) return;
   wrap.innerHTML='<div style="color:var(--t3);font-size:13px;padding:10px 0">⏳ Calculando...</div>';
-  db.collection('inv_bipagens').where('invId','==',_invAtivo.id).orderBy('ts','asc').get().then(function(snap){
+  db.collection('inv_bipagens').where('invId','==',_invAtivo.id).get().then(function(snap){
     if (snap.empty) { wrap.innerHTML='<div style="font-size:13px;color:var(--t3);padding:10px 0">Nenhuma bipagem registrada.</div>'; return; }
+    var bips=snap.docs.map(function(d){ return d.data(); });
+    bips.sort(function(a,b){ return ((a.ts&&a.ts.seconds)||0)-((b.ts&&b.ts.seconds)||0); });
     var por={};
-    snap.docs.forEach(function(d){
-      var b=d.data();
+    bips.forEach(function(b){
+      if(b.modo==='correcao') return;
       var id=b.coletorId||'?';
-      if (!por[id]) por[id]={nome:b.coletorNome||id,bips:0,firstTs:null,lastTs:null};
+      if (!por[id]) por[id]={nome:b.coletorNome||id,bips:0,pecas:0,firstTs:null,lastTs:null};
       por[id].bips++;
+      por[id].pecas+=(b.qty||1);
       var ts=b.ts&&b.ts.seconds?b.ts.seconds*1000:null;
       if (ts) {
         if (!por[id].firstTs||ts<por[id].firstTs) por[id].firstTs=ts;
         if (!por[id].lastTs||ts>por[id].lastTs) por[id].lastTs=ts;
       }
     });
+    if (!Object.keys(por).length) { wrap.innerHTML='<div style="font-size:13px;color:var(--t3);padding:10px 0">Nenhuma bipagem registrada.</div>'; return; }
     var rows=Object.keys(por).sort().map(function(id){
       var p=por[id];
       var durMin=p.firstTs&&p.lastTs?(p.lastTs-p.firstTs)/60000:0;
       var bph=durMin>1?Math.round(p.bips/(durMin/60)):p.bips;
-      var durStr=durMin<1?'< 1 min':(durMin<60?Math.round(durMin)+' min':Math.round(durMin/60)+'h '+Math.round(durMin%60)+'min');
+      var durStr=durMin<1?'< 1 min':(durMin<60?Math.round(durMin)+' min':Math.floor(durMin/60)+'h '+Math.round(durMin%60)+'min');
       return '<tr>'+
-        '<td style="font-family:monospace;font-weight:700">'+id+'</td>'+
+        '<td><div style="font-family:monospace;font-weight:700;font-size:13px">'+id+'</div>'+(p.nome&&p.nome!==id?'<div style="font-size:11px;color:var(--t2)">'+p.nome+'</div>':'')+'</td>'+
         '<td style="text-align:right">'+p.bips+'</td>'+
+        '<td style="text-align:right">'+p.pecas+'</td>'+
         '<td style="text-align:right">'+durStr+'</td>'+
-        '<td style="text-align:right;font-weight:700;color:var(--y-dark,#b38600)">'+bph+'/h</td>'+
+        '<td style="text-align:right;font-weight:700;color:#b38600">'+bph+'/h</td>'+
       '</tr>';
     }).join('');
     wrap.innerHTML=
       '<div style="overflow-x:auto"><table>'+
-        '<thead><tr><th>Coletor</th><th style="text-align:right">Bipagens</th><th style="text-align:right">Tempo ativo</th><th style="text-align:right">Bip/hora</th></tr></thead>'+
+        '<thead><tr><th>Coletor</th><th style="text-align:right">Itens</th><th style="text-align:right">Peças</th><th style="text-align:right">Tempo</th><th style="text-align:right">Bip/h</th></tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
       '</table></div>';
   }).catch(function(e){ wrap.innerHTML='<div style="color:var(--r);font-size:13px">Erro: '+e.message+'</div>'; });
