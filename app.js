@@ -7896,13 +7896,59 @@ function _pararDashboardRealtime() {
   _lastBipsCache=[];
 }
 
-// ── Override atualizarNavColeta — mostra coleta para todos se há inv aberto ─
+// ── Override atualizarNavColeta — coleta visível quando há inv aberto ────────
 function atualizarNavColeta() {
   var colItem=document.getElementById('nav-inv-coleta'); if(!colItem) return;
-  var sec=document.getElementById('sb-inv-sec');
+  // sb-inv-sec e nav-inv-gestao são controlados por setupRole() — não mexer aqui
   var temAberto=(S.invsCache||[]).some(function(i){ return i.status==='aberto'; });
   colItem.style.display=temAberto?'flex':'none';
-  if(sec) sec.style.display=temAberto?'block':'none';
+
+  // Restaura detalhe de inventário após reload
+  var raw=sessionStorage.getItem('inv_detalhe_state');
+  if (!raw) return;
+  try {
+    var st=JSON.parse(raw);
+    if (!st||!st.invId) return;
+    var inv=(S.invsCache||[]).find(function(i){ return i.id===st.invId; });
+    if (!inv) return;
+    sessionStorage.removeItem('inv_detalhe_state');
+    // Garante que estamos no painel inv
+    var panel=document.getElementById('panel-inv');
+    if (panel&&!panel.classList.contains('active')) {
+      var navEl=document.querySelector('.sb-item[onclick*="\'inv\'"]');
+      nav('inv',navEl);
+    }
+    abrirDetalheInv(st.invId);
+    if (st.tab) setTimeout(function(){
+      var btn=document.querySelector('#inv-detalhe-tabs .tab[onclick*="\''+st.tab+'\'"]');
+      switchInvTab(st.tab,btn);
+    },200);
+  } catch(e){}
+}
+
+// ── Salva estado do detalhe para restaurar no reload ─────────────────────────
+function switchInvTab(tab,btn) {
+  // Salva estado antes de chamar o original
+  if (_invAtivo) {
+    sessionStorage.setItem('inv_detalhe_state', JSON.stringify({invId:_invAtivo.id,tab:tab}));
+  }
+  // Lógica original
+  document.querySelectorAll('#inv-detalhe-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
+  ['enderecos','dashboard','bipagens','auditoria','exportar'].forEach(function(t){ var el=document.getElementById('inv-tab-'+t); if(el) el.style.display=t===tab?'block':'none'; });
+  if (tab!=='dashboard') _pararDashboardRealtime();
+  if (tab==='enderecos') renderInvEnderecos();
+  if (tab==='dashboard') _iniciarDashboardRealtime(_invAtivo.id);
+  if (tab==='bipagens'){ var f=document.getElementById('inv-bip-filter'); renderInvBipagens(f&&f.value||null); }
+  if (tab==='auditoria') renderTrilhaAuditoria(_invAtivo.id);
+}
+
+function voltarInvLista() {
+  sessionStorage.removeItem('inv_detalhe_state');
+  _pararDashboardRealtime();
+  _invAtivo=null;
+  document.getElementById('inv-lista-wrap').style.display='block';
+  document.getElementById('inv-detalhe-wrap').style.display='none';
 }
 
 // ── _eanEnterKey — Enter no campo EAN: vai pra qty se reconhecido ─────────
