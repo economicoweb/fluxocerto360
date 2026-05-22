@@ -1,6 +1,6 @@
 // Fluxo Certo 360 — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v70';
+var CACHE_NAME = 'cahu360-v71';
 
 var SHELL_ASSETS = [
   './',

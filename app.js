@@ -6385,11 +6385,11 @@ function toggleCorrecaoBipagem() {
   if(corrAberta){
     if(corrWrap) corrWrap.style.display='none';
     if(tabelaWrap) tabelaWrap.style.display='';
-    if(btn){ btn.style.background=''; btn.style.color=''; btn.style.borderColor=''; }
+    if(btn){ btn.style.background='#fff'; btn.style.color='var(--t2)'; btn.style.borderColor='var(--gray2)'; }
   } else {
     if(corrWrap) corrWrap.style.display='';
     if(tabelaWrap) tabelaWrap.style.display='none';
-    if(btn){ btn.style.background='var(--y)'; btn.style.color='#111'; btn.style.borderColor='var(--y)'; }
+    if(btn){ btn.style.background='var(--y)'; btn.style.color='#111'; btn.style.border='2px solid var(--y)'; }
     renderCorrecaoBipagem();
   }
 }
@@ -6400,7 +6400,7 @@ function _fecharCorrecaoView() {
   var btn=document.getElementById('bip-btn-correcao');
   if(corrWrap) corrWrap.style.display='none';
   if(tabelaWrap) tabelaWrap.style.display='';
-  if(btn){ btn.style.background=''; btn.style.color=''; btn.style.borderColor=''; }
+  if(btn){ btn.style.background='#fff'; btn.style.color='var(--t2)'; btn.style.borderColor='var(--gray2)'; }
 }
 
 // ── Correção de Bipagem ───────────────────────────────────────────────────
