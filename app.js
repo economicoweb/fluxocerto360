@@ -770,7 +770,6 @@ function setupRole() {
   show('sb-inv-sec', isAdmin);
   show('nav-inv-gestao', isAdmin);
   show('nav-inv-coleta', false); // Atualizado dinamicamente após carregar inventários
-  show('nav-inv-avulsa', false); // Atualizado dinamicamente após carregar inventários
   // Inicia verificação periódica de pendências para gestores e supervisor
   if (isAdmOrGer || isSup) {
     pedirPermissaoNotificacao();
@@ -7450,6 +7449,23 @@ function _encontrarAtribuicao() {
 
 // ── ID de Coletor (localStorage) ──────────────────────────────────────────
 var _COLETOR_KEY = 'fc360_coletor_id';
+var _PALLET_KEY  = 'fc360_modo_pallet';
+function _getModoPallet(){ return localStorage.getItem(_PALLET_KEY)==='1'; }
+function _toggleModoPallet(){
+  var on=!_getModoPallet();
+  localStorage.setItem(_PALLET_KEY,on?'1':'0');
+  var fw=document.getElementById('inv-fator-wrap');
+  if(fw) fw.style.display=on?'':'none';
+  var btn=document.getElementById('inv-pallet-btn');
+  if(btn){
+    btn.style.background=on?'var(--y)':'#fff';
+    btn.style.border='1.5px solid '+(on?'var(--y)':'var(--gray2)');
+    btn.style.color=on?'#111':'var(--t2)';
+    btn.textContent='🏗 Pallet '+(on?'ON':'—');
+  }
+  if(on){ var fi=document.getElementById('inv-fator-input'); if(fi){fi.value='1';fi.focus();} }
+  else { var qi=document.getElementById('inv-qty-input'); if(qi) qi.focus(); }
+}
 
 function _getIdColetor() {
   return (localStorage.getItem(_COLETOR_KEY)||'').trim();
@@ -7541,26 +7557,35 @@ function renderColeta() {
   var mudarBtn=isModoFila
     ?'<button onclick="liberarEnderecoFila(\''+inv.id+'\',\''+end.replace(/'/g,"\\'")+'\');renderColeta()" style="padding:7px 14px;background:#fff;border:1.5px solid var(--gray2);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:14px">← Mudar Endereço</button>'
     :'';
+  var palletOn=_getModoPallet();
   var scanHtml=concluido
     ?'<div style="background:#f9fbe7;border:1.5px solid #c8e6c9;border-radius:12px;padding:20px;text-align:center;margin-top:16px">'+
         '<div style="font-size:24px;margin-bottom:8px">✅</div>'+
         '<div style="font-size:15px;font-weight:700;color:#1a5c34;margin-bottom:4px">Contagem finalizada</div>'+
         '<div style="font-size:13px;color:var(--t2)">'+(isModoFila?'Toque em "← Mudar Endereço" para continuar.':'Aguarde o resultado do administrador.')+'</div>'+
       '</div>'
-    :'<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">'+
-        '<div style="flex:1;min-width:200px">'+
-          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">EAN / Código de Barras</label>'+
-          '<input id="inv-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" onkeydown="if(event.key===\'Enter\')_eanEnterKey()"/>'+
-          '<div id="inv-desc-preview" style="font-size:12px;margin-top:5px;min-height:18px"></div>'+
+    :'<div style="margin-top:14px">'+
+        '<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'+
+          '<button id="inv-pallet-btn" onclick="_toggleModoPallet()" title="Modo Pallet: multiplica Qtd × Fator" style="padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid '+(palletOn?'var(--y)':'var(--gray2)')+';background:'+(palletOn?'var(--y)':'#fff')+';color:'+(palletOn?'#111':'var(--t2)')+'">'+
+            '🏗 Pallet '+(palletOn?'ON':'—')+
+          '</button>'+
         '</div>'+
-        '<div style="width:72px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
-          '<input id="inv-qty-input" type="number" value="1" min="1" style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\'){var fi=document.getElementById(\'inv-fator-input\');if(fi){fi.focus();fi.select();}}"/></div>'+
-        '<div style="width:62px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">× Fator</label>'+
-          '<input id="inv-fator-input" type="number" value="1" min="1" style="width:100%;padding:13px 8px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\')registrarBipagem()"/></div>'+
-        '<button onclick="registrarBipagem()" style="padding:13px 22px;background:#FFC600;color:#111;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Registrar</button>'+
-      '</div>'+
-      '<div style="margin-top:12px;display:flex;justify-content:flex-end">'+
-        '<button onclick="finalizarRodada()" style="padding:8px 18px;background:#fff;border:1.5px solid var(--r);color:var(--r);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Finalizar Contagem</button>'+
+        '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
+          '<div style="flex:1;min-width:200px">'+
+            '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">EAN / Código de Barras</label>'+
+            '<input id="inv-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" onkeydown="if(event.key===\'Enter\')_eanEnterKey()"/>'+
+            '<div id="inv-desc-preview" style="font-size:12px;margin-top:5px;min-height:18px"></div>'+
+          '</div>'+
+          '<div style="width:80px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
+            '<input id="inv-qty-input" type="number" value="1" min="1" style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\'){if(_getModoPallet()){var fi=document.getElementById(\'inv-fator-input\');if(fi){fi.focus();fi.select();}}else registrarBipagem();}"/></div>'+
+          '<div id="inv-fator-wrap" style="width:62px;'+(palletOn?'':'display:none')+'">'+
+            '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">× Fator</label>'+
+            '<input id="inv-fator-input" type="number" value="1" min="1" style="width:100%;padding:13px 8px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\')registrarBipagem()"/></div>'+
+          '<button onclick="registrarBipagem()" style="padding:13px 22px;background:#FFC600;color:#111;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Registrar</button>'+
+        '</div>'+
+        '<div style="margin-top:12px;display:flex;justify-content:flex-end">'+
+          '<button onclick="finalizarRodada()" style="padding:8px 18px;background:#fff;border:1.5px solid var(--r);color:var(--r);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Finalizar Contagem</button>'+
+        '</div>'+
       '</div>';
   var coletorChip='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:9px 14px;background:#fff8e1;border:1.5px solid #f5c518;border-radius:10px">'+
     '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#b38600">Coletor</span>'+
@@ -7968,8 +7993,6 @@ function atualizarNavColeta() {
   // sb-inv-sec e nav-inv-gestao são controlados por setupRole() — não mexer aqui
   var temAberto=(S.invsCache||[]).some(function(i){ return i.status==='aberto'; });
   colItem.style.display=temAberto?'flex':'none';
-  var avulsaItem=document.getElementById('nav-inv-avulsa');
-  if (avulsaItem) avulsaItem.style.display=temAberto?'flex':'none';
 
   // Restaura detalhe de inventário após reload
   var raw=sessionStorage.getItem('inv_detalhe_state');
@@ -8058,13 +8081,9 @@ function registrarBipagem() {
   }
   var end=_invColetaAtual.endereco, rodada=_invColetaAtual.rodada||1, modo=_invColetaAtual.modo||'colaboracao', seq=_nextSeq;
   _bipRegistrando=true;
-  db.collection('inv_bipagens').add({
-    invId:inv.id, loja:inv.loja||'', endereco:end, seq:seq, ean:ean, qty:qtyTotal,
-    fator:fator>1?fator:undefined,
-    rodada:rodada, modo:modo,
-    coletorId:coletorId, coletorNome:coletorId,
-    ts:firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function(){
+  var _bipData={invId:inv.id,loja:inv.loja||'',endereco:end,seq:seq,ean:ean,qty:qtyTotal,rodada:rodada,modo:modo,coletorId:coletorId,coletorNome:coletorId,ts:firebase.firestore.FieldValue.serverTimestamp()};
+  if(fator>1) _bipData.fator=fator;
+  db.collection('inv_bipagens').add(_bipData).then(function(){
     db.collection('inv_inventarios').doc(inv.id).update({totalBipagens:firebase.firestore.FieldValue.increment(1)}).catch(function(){});
     _nextSeq++;
     var sl=document.getElementById('inv-seq-label'); if(sl) sl.textContent='Próx. seq: '+_nextSeq;
