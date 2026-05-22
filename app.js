@@ -5977,11 +5977,11 @@ function loadInventariosFromFirebase(cb) {
 function loadBipagensByInv(invId, cb) {
   db.collection('inv_bipagens')
     .where('invId','==',invId)
-    .orderBy('seq','asc')
     .get().then(function(snap){
       var list = snap.docs.map(function(d){ return d.data(); });
+      list.sort(function(a,b){ return (a.seq||0)-(b.seq||0); });
       if (cb) cb(list);
-    }).catch(function(){ if (cb) cb([]); });
+    }).catch(function(e){ console.error('loadBipagensByInv',e); if (cb) cb([]); });
 }
 
 function loadCatalogoByInv(invId, cb) {
@@ -6102,7 +6102,7 @@ function renderInvList() {
 }
 
 // ── Admin: detalhe ────────────────────────────────────────────────
-function abrirDetalheInv(invId) {
+function abrirDetalheInv(invId, tabInicial) {
   _invAtivo = (S.invsCache||[]).find(function(i){ return i.id===invId; }) || null;
   if (!_invAtivo) return;
   document.getElementById('inv-lista-wrap').style.display = 'none';
@@ -6116,7 +6116,11 @@ function abrirDetalheInv(invId) {
   // Reset bipagens filter
   var filter = document.getElementById('inv-bip-filter');
   if (filter) { filter.innerHTML=''; filter.removeAttribute('data-built'); }
-  switchInvTab('enderecos', document.querySelector('#inv-detalhe-tabs .tab'));
+  var tab = tabInicial || 'enderecos';
+  var btn = tab === 'enderecos'
+    ? document.querySelector('#inv-detalhe-tabs .tab')
+    : document.querySelector('#inv-detalhe-tabs .tab[onclick*="\''+tab+'\'"]');
+  switchInvTab(tab, btn);
 }
 
 function voltarInvLista() {
@@ -6527,19 +6531,20 @@ function renderTrilhaAuditoria(invId) {
   var tbody=document.getElementById('auditoria-tbody');
   if (!tbody) return;
   tbody.innerHTML='<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--t3)">Carregando...</td></tr>';
-  db.collection('inv_auditlog').where('invId','==',invId).orderBy('ts','desc').limit(200)
+  db.collection('inv_auditlog').where('invId','==',invId).limit(200)
     .get().then(function(snap){
       if (snap.empty){ tbody.innerHTML='<tr class="erow"><td colspan="4">Nenhum registro ainda.</td></tr>'; return; }
+      var docs=snap.docs.map(function(d){ return d.data(); });
+      docs.sort(function(a,b){ return ((b.ts&&b.ts.seconds)||0)-((a.ts&&a.ts.seconds)||0); });
       var labels={
         inventario_criado:'Inventário criado', coletor_adicionado:'Coletor adicionado',
         coletor_removido:'Coletor removido', modo_alterado:'Modo alterado',
         rodada_finalizada:'Rodada finalizada', divergencia_resolvida:'Divergência resolvida',
         inventario_encerrado:'Inventário encerrado'
       };
-      tbody.innerHTML=snap.docs.map(function(d){
-        var r=d.data();
+      tbody.innerHTML=docs.map(function(r){
         var hora=r.ts?new Date(r.ts.seconds*1000).toLocaleString('pt-BR'):'—';
-        return '<tr><td style="font-size:12px;white-space:nowrap">'+hora+'</td><td style="font-size:12px">'+(r.userName||'—')+'</td><td style="font-size:12px;font-weight:600">'+(labels[r.acao]||r.acao)+'</td><td style="font-size:12px;color:var(--t2)">'+r.detalhes+'</td></tr>';
+        return '<tr><td style="font-size:12px;white-space:nowrap">'+hora+'</td><td style="font-size:12px">'+(r.userName||'—')+'</td><td style="font-size:12px;font-weight:600">'+(labels[r.acao]||r.acao)+'</td><td style="font-size:12px;color:var(--t2)">'+(r.detalhes||'')+'</td></tr>';
       }).join('');
     }).catch(function(){ tbody.innerHTML='<tr class="erow"><td colspan="4">Erro ao carregar.</td></tr>'; });
 }
@@ -7964,11 +7969,7 @@ function atualizarNavColeta() {
       var navEl=document.querySelector('.sb-item[onclick*="\'inv\'"]');
       nav('inv',navEl);
     }
-    abrirDetalheInv(st.invId);
-    if (st.tab) setTimeout(function(){
-      var btn=document.querySelector('#inv-detalhe-tabs .tab[onclick*="\''+st.tab+'\'"]');
-      switchInvTab(st.tab,btn);
-    },200);
+    abrirDetalheInv(st.invId, st.tab||'enderecos');
   } catch(e){}
 }
 
