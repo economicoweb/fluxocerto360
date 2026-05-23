@@ -34,6 +34,8 @@ function forcarAtualizacao() {
     }));
   }
   Promise.all(limpar).then(function() {
+    sessionStorage.removeItem('eco_last_page');
+    sessionStorage.removeItem('inv_detalhe_state');
     window.location.reload(true);
   });
 }
@@ -693,6 +695,12 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
+    var _BUILD = '109';
+    if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
+      localStorage.setItem('fc360_build', _BUILD);
+      sessionStorage.removeItem('eco_last_page');
+      sessionStorage.removeItem('inv_detalhe_state');
+    }
     var lastPage = sessionStorage.getItem('eco_last_page');
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
@@ -8375,6 +8383,10 @@ function gerarPDFBipagens() {
         +'<div class="ct">'+bodyHtml
         +'<div style="margin-top:16px;padding:10px 14px;background:#111;color:#FFC600;font-size:14px;font-weight:700;border-radius:4px">'
         +'TOTAL GERAL: '+grandTotal+' unidades &nbsp;|&nbsp; '+bipsFilt.length+' itens bipados &nbsp;|&nbsp; '+enderecos.length+' endereco(s)</div>'
+        +'<div style="margin-top:48px;display:flex;gap:48px">'
+        +'<div style="flex:1;border-top:2px solid #222;padding-top:10px;text-align:center;font-size:12px;color:#444">Responsavel pela contagem</div>'
+        +'<div style="flex:1;border-top:2px solid #222;padding-top:10px;text-align:center;font-size:12px;color:#444">Responsavel pela bipagem</div>'
+        +'</div>'
         +'</div></body></html>';
       var w=window.open('','_blank','width=900,height=700');
       if(w){ w.document.write(html); w.document.close(); w.onload=function(){ w.print(); }; }

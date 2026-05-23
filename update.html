@@ -50,6 +50,8 @@ function atualizar() {
   }
 
   Promise.all(etapas).then(function() {
+    sessionStorage.removeItem('eco_last_page');
+    sessionStorage.removeItem('inv_detalhe_state');
     msg.innerHTML = '<span class="ok">✓ Cache limpo!</span><br>Redirecionando para o app...';
     btn.textContent = 'Aguarde...';
     setTimeout(function() {

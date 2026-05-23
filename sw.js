@@ -1,15 +1,14 @@
 // Fluxo Certo 360 — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v105';
+var CACHE_NAME = 'cahu360-v110';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
-// Isso garante que o app.js novo chegue sempre, quebrando o ciclo de cache
 var NETWORK_FIRST = ['app.js', 'index.html'];
 
 var SHELL_ASSETS = [
   './',
   './index.html',
-  './app.js',
+  './app.js?v=109',
   './style.css',
   './logo.png',
   './icon-192.png',
@@ -75,8 +74,8 @@ self.addEventListener('fetch', function(event) {
   }
 
   // app.js e index.html: SEMPRE network-first
-  // Isso garante que atualizações cheguem sem depender do controllerchange
-  var isNetworkFirst = NETWORK_FIRST.some(function(f) { return url.endsWith(f) || url.endsWith(f + '?'); });
+  var urlPath = url.split('?')[0];
+  var isNetworkFirst = NETWORK_FIRST.some(function(f) { return urlPath.endsWith(f); });
   if (isNetworkFirst) {
     event.respondWith(
       fetch(event.request).then(function(resp) {
