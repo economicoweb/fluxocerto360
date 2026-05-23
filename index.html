@@ -975,9 +975,15 @@
             <!-- Filtros -->
             <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <label style="font-size:12px;font-weight:600;color:var(--t2)">Endereço:</label>
-              <select id="inv-bip-filter" onchange="renderInvBipagens(this.value||null,null)" style="padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"></select>
-              <select id="inv-bip-col-filter" onchange="renderInvBipagens(document.getElementById('inv-bip-filter').value||null,this.value||null)" style="display:none;padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"></select>
-              <button class="btn btn-s btn-sm" onclick="renderInvBipagens(null,null);document.getElementById('inv-bip-filter').value='';document.getElementById('inv-bip-col-filter').style.display='none';_fecharCorrecaoView()">Todos</button>
+              <select id="inv-bip-filter" onchange="renderInvBipagens(this.value||null,null,document.getElementById('inv-bip-setor-filter').value||null)" style="padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"></select>
+              <select id="inv-bip-col-filter" onchange="renderInvBipagens(document.getElementById('inv-bip-filter').value||null,this.value||null,document.getElementById('inv-bip-setor-filter').value||null)" style="display:none;padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"></select>
+              <label style="font-size:12px;font-weight:600;color:var(--t2)">Setor:</label>
+              <select id="inv-bip-setor-filter" onchange="renderInvBipagens(document.getElementById('inv-bip-filter').value||null,document.getElementById('inv-bip-col-filter').value||null,this.value||null)" style="padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit">
+                <option value="">Todos</option>
+                <option value="ESTOQUE">ESTOQUE</option>
+                <option value="LOJA">LOJA</option>
+              </select>
+              <button class="btn btn-s btn-sm" onclick="renderInvBipagens(null,null,null);document.getElementById('inv-bip-filter').value='';document.getElementById('inv-bip-setor-filter').value='';document.getElementById('inv-bip-col-filter').style.display='none';_fecharCorrecaoView()">Todos</button>
             </div>
             <!-- Botão Correção destacado -->
             <div style="margin-bottom:14px">
