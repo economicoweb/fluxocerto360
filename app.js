@@ -19,6 +19,24 @@ db.enablePersistence({synchronizeTabs: true}).catch(function(err){
 
 // ── PWA: registrar Service Worker ──
 var _swRefreshing = false;
+
+function forcarAtualizacao() {
+  if (!confirm('Isso vai limpar o cache do app e recarregar a versão mais recente. Continuar?')) return;
+  var limpar = [];
+  if ('caches' in window) {
+    limpar.push(caches.keys().then(function(keys) {
+      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }));
+  }
+  if ('serviceWorker' in navigator) {
+    limpar.push(navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+    }));
+  }
+  Promise.all(limpar).then(function() {
+    window.location.reload(true);
+  });
+}
 function _swBanner() {
   if (document.getElementById('sw-banner')) return;
   var b = document.createElement('div');
