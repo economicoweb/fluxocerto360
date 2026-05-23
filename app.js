@@ -6339,24 +6339,36 @@ function _confirmarEncerrarInv(invId) {
   var senha=(senhaEl?senhaEl.value:'').trim();
   if (!senha) { if(errEl) errEl.textContent='Informe sua senha.'; return; }
   var user=S.currentUser;
-  if (!user||senha!==user.senha) { if(errEl) errEl.textContent='Senha incorreta. Tente novamente.'; if(senhaEl){senhaEl.value='';senhaEl.focus();} return; }
-  fecharModalEncerrarInv();
-  db.collection('inv_inventarios').doc(invId).update({ status:'encerrado', encerradoEm:firebase.firestore.FieldValue.serverTimestamp(), encerradoPor:user.id }).then(function(){
-    loadInventariosFromFirebase(function(){
-      renderInvList();
-      if (_invAtivo && _invAtivo.id===invId) {
-        _invAtivo.status='encerrado';
-        var statusEl = document.getElementById('inv-detalhe-status');
-        if (statusEl) { statusEl.textContent='ENCERRADO'; statusEl.style.background='#f0f0f0'; statusEl.style.color='#666'; }
-        var actEl=document.getElementById('inv-end-actions');
-        if(actEl) actEl.style.display='none';
-        var corrBtn=document.getElementById('bip-btn-correcao');
-        if(corrBtn) corrBtn.style.display='none';
-        renderInvEnderecos();
-      }
-      atualizarNavColeta();
-    });
-  }).catch(function(e){ alert('Erro: '+e.message); });
+  if (!user) { if(errEl) errEl.textContent='Sessão inválida.'; return; }
+  hashPassword(senha).then(function(senhaHash) {
+    var match=isHashed(user.senha)?(user.senha===senhaHash):(user.senha===senha);
+    if (!match) {
+      if(errEl) errEl.textContent='Senha incorreta. Tente novamente.';
+      if(senhaEl){ senhaEl.value=''; senhaEl.focus(); }
+      return;
+    }
+    fecharModalEncerrarInv();
+    db.collection('inv_inventarios').doc(invId).update({
+      status:'encerrado',
+      encerradoEm:firebase.firestore.FieldValue.serverTimestamp(),
+      encerradoPor:user.id
+    }).then(function(){
+      loadInventariosFromFirebase(function(){
+        renderInvList();
+        if (_invAtivo && _invAtivo.id===invId) {
+          _invAtivo.status='encerrado';
+          var statusEl=document.getElementById('inv-detalhe-status');
+          if(statusEl){ statusEl.textContent='ENCERRADO'; statusEl.style.background='#f0f0f0'; statusEl.style.color='#666'; }
+          var actEl=document.getElementById('inv-end-actions');
+          if(actEl) actEl.style.display='none';
+          var corrBtn=document.getElementById('bip-btn-correcao');
+          if(corrBtn) corrBtn.style.display='none';
+          renderInvEnderecos();
+        }
+        atualizarNavColeta();
+      });
+    }).catch(function(e){ alert('Erro: '+e.message); });
+  });
 }
 
 // ── Bipagens tab ──────────────────────────────────────────────────
