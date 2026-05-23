@@ -8019,7 +8019,7 @@ function _exibirModalFinalizar(bips) {
             '<div style="font-size:26px;font-weight:800;line-height:1.1">'+bips.length+'</div>'+
           '</div>'+
           '<div style="flex:1;padding:12px 8px;background:#fff8e1;border-radius:12px;text-align:center">'+
-            '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b38600">Peças</div>'+
+            '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#b38600">Unidades</div>'+
             '<div style="font-size:26px;font-weight:800;line-height:1.1">'+totalPecas+'</div>'+
           '</div>'+
         '</div>'+
@@ -8698,7 +8698,7 @@ function renderProdutividade() {
     }).join('');
     wrap.innerHTML=
       '<div style="overflow-x:auto"><table>'+
-        '<thead><tr><th>Coletor</th><th style="text-align:right">Itens</th><th style="text-align:right">Peças</th><th style="text-align:right">Tempo</th><th style="text-align:right">Bip/h</th></tr></thead>'+
+        '<thead><tr><th>Coletor</th><th style="text-align:right">Itens</th><th style="text-align:right">Unidades</th><th style="text-align:right">Tempo</th><th style="text-align:right">Bip/h</th></tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
       '</table></div>';
   });
