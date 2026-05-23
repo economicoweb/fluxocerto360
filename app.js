@@ -7656,8 +7656,9 @@ function _encontrarAtribuicao() {
 }
 
 // ── ID de Coletor (localStorage) ──────────────────────────────────────────
-var _COLETOR_KEY = 'fc360_coletor_id';
-var _PALLET_KEY  = 'fc360_modo_pallet';
+var _COLETOR_KEY     = 'fc360_coletor_id';
+var _COLETOR_INV_KEY = 'fc360_coletor_inv'; // invId do inventário em que o ID foi registrado
+var _PALLET_KEY      = 'fc360_modo_pallet';
 function _getModoPallet(){ return localStorage.getItem(_PALLET_KEY)==='1'; }
 function _toggleModoPallet(){
   var on=!_getModoPallet();
@@ -7711,6 +7712,8 @@ function _confirmarIdColetor() {
   if (!val) { alert('Informe seu ID de coletor.'); return; }
   _setIdColetor(val);
   _setNomeColetor(nome);
+  var activeInv=(S.invsCache||[]).find(function(i){ return i.status==='aberto'; });
+  if(activeInv) localStorage.setItem(_COLETOR_INV_KEY, activeInv.id);
   renderColeta();
 }
 
@@ -7726,6 +7729,17 @@ function renderColeta() {
   var wrap=document.getElementById('inv-coleta-wrap'); if(!wrap) return;
   var u=S.currentUser;
   if (!u) { wrap.innerHTML='<div style="padding:40px;text-align:center;color:var(--t3)">Faça login.</div>'; return; }
+
+  // Novo inventário → limpa ID salvo e exige nova identificação
+  var _anyAberto=(S.invsCache||[]).find(function(i){ return i.status==='aberto'; });
+  if(_anyAberto){
+    var _savedInv=localStorage.getItem(_COLETOR_INV_KEY);
+    if(!_savedInv||_savedInv!==_anyAberto.id){
+      localStorage.removeItem(_COLETOR_KEY);
+      localStorage.removeItem(_COLETOR_NOME_KEY);
+      localStorage.removeItem(_COLETOR_INV_KEY);
+    }
+  }
 
   // Exige ID de coletor antes de qualquer coisa
   if (!_getIdColetor()) {
