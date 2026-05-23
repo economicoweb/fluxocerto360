@@ -8178,184 +8178,159 @@ function renderDashboardRealtime(bips) {
   }).join('');
 }
 
-// ── Relatório PDF ─────────────────────────────────────────────────────────
+// ── Relatorio PDF (HTML, abre impressao + fica visivel no browser) ─────────
 function gerarRelPDF() {
   if (!_invAtivo) return;
-  var jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
-  if (!jsPDFCtor) { alert('PDF não carregou. Verifique sua conexão.'); return; }
-  var inv=_invAtivo,enderecos=inv.enderecos||[],resolucoes=inv.resolucoes||{},filaMap=inv.fila||{};
+  var inv=_invAtivo, enderecos=inv.enderecos||[], resolucoes=inv.resolucoes||{}, filaMap=inv.fila||{};
   var isModoFila=!!inv.modoFila;
   var now=new Date();
   var dtStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  loadBipagensByInv(inv.id,function(bips){
-    loadCatalogoByInv(inv.id,function(cat){
-      var doc=new jsPDFCtor({orientation:'portrait',unit:'mm',format:'a4'});
-      doc.setFillColor(255,198,0); doc.rect(0,0,210,28,'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(17,17,17);
-      doc.text('FC360 Inventário',14,12);
-      doc.setFontSize(10); doc.setFont('helvetica','normal');
-      doc.text(inv.nome,14,19);
-      doc.text('Gerado: '+dtStr+'  |  Status: '+inv.status.toUpperCase(),14,25);
-      var y=36;
-      var bipFiltradas=bips.filter(function(b){ var res=resolucoes[b.endereco]; return !res||(b.rodada||1)===res.rodada; });
-      var uniqueEANs=[];
-      bipFiltradas.forEach(function(b){ if(uniqueEANs.indexOf(b.ean)<0) uniqueEANs.push(b.ean); });
-      doc.autoTable({startY:y,head:[['Endereços','Total Bipagens','EANs únicos','Bipagens válidas']],body:[[enderecos.length,bips.length,uniqueEANs.length,bipFiltradas.length]],theme:'striped',headStyles:{fillColor:[255,198,0],textColor:[17,17,17],fontStyle:'bold'},styles:{fontSize:9,halign:'center'},margin:{left:14,right:14}});
-      y=doc.lastAutoTable.finalY+8;
-      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(17,17,17);
-      doc.text('Detalhamento por Endereço',14,y); y+=3;
-      var endRows=enderecos.map(function(e){
-        var modo,colTxt,status;
-        if (isModoFila) {
-          modo='Fila'; var slot=filaMap[e];
-          colTxt=slot?slot.nome+(slot.concluido?' ✓':''):'—';
-          status=slot?(slot.concluido?'Concluído':'Em andamento'):'Pendente';
-        } else {
-          var atrib=_normalizeAtrib((inv.atribuicoes||{})[e]);
-          modo=atrib.modo==='auditoria'?'Auditoria':'Collab';
-          colTxt=atrib.coletores.map(function(c){ return c.nome+(c.concluido?' ✓':''); }).join(', ')||'—';
-          var allD=atrib.coletores.length>0&&atrib.coletores.every(function(c){ return c.concluido; });
-          status=resolucoes[e]?'Resolvido':allD?'Concluído':atrib.coletores.length?'Em andamento':'Pendente';
-        }
-        var endBips=bips.filter(function(b){ return b.endereco===e; }).length;
-        return [e,modo,colTxt,endBips,status];
-      });
-      doc.autoTable({startY:y,head:[['Endereço','Modo','Coletores','Bipagens','Status']],body:endRows,theme:'striped',headStyles:{fillColor:[255,198,0],textColor:[17,17,17],fontStyle:'bold'},styles:{fontSize:8},columnStyles:{0:{fontStyle:'bold',font:'courier'},3:{halign:'center'}},margin:{left:14,right:14}});
-      y=doc.lastAutoTable.finalY+8;
+  loadBipagensByInv(inv.id, function(bips) {
+    var bipFiltradas=bips.filter(function(b){ var res=resolucoes[b.endereco]; return !res||(b.rodada||1)===res.rodada; });
+    var uniqueEANs=[];
+    bipFiltradas.forEach(function(b){ if(uniqueEANs.indexOf(b.ean)<0) uniqueEANs.push(b.ean); });
+    var statusBg={'Concluido':'#d1f0e0','Em andamento':'#e8f5ee','Pendente':'#f0f0f0','Resolvido':'#d1f0e0','Auditoria pendente':'#fff3e0'};
+    var endRows=enderecos.map(function(e){
+      var modo,colTxt,status,endBips=bips.filter(function(b){ return b.endereco===e; }).length;
+      if (isModoFila) {
+        modo='Fila'; var slot=filaMap[e];
+        colTxt=slot?slot.nome+(slot.concluido?' ok':''):'-';
+        status=slot?(slot.concluido?'Concluido':'Em andamento'):'Pendente';
+      } else {
+        var atrib=_normalizeAtrib((inv.atribuicoes||{})[e]);
+        modo=atrib.modo==='auditoria'?'Auditoria':'Collab';
+        colTxt=atrib.coletores.map(function(c){ return c.nome+(c.concluido?' ok':''); }).join(', ')||'-';
+        var allD=atrib.coletores.length>0&&atrib.coletores.every(function(c){ return c.concluido; });
+        status=resolucoes[e]?'Resolvido':allD?'Concluido':atrib.coletores.length?'Em andamento':'Pendente';
+      }
+      var sc=statusBg[status]||'#f0f0f0';
+      return '<tr><td style="font-family:monospace;font-weight:700">'+e+'</td><td>'+modo+'</td><td style="font-size:11px">'+colTxt+'</td><td style="text-align:center">'+endBips+'</td><td><span style="padding:2px 8px;border-radius:10px;background:'+sc+';font-size:10px;font-weight:700">'+status+'</span></td></tr>';
+    }).join('');
+    var divSection='';
+    if (!isModoFila) {
       var divRows=[];
       enderecos.forEach(function(e){
-        if (!isModoFila) {
-          var r1=bips.filter(function(b){ return b.endereco===e&&(b.rodada||1)===1; });
-          var r2=bips.filter(function(b){ return b.endereco===e&&(b.rodada||1)===2; });
-          if (r2.length) { var divs=_calcDivergencias(r1,r2); if(divs.length){ var res=resolucoes[e]; divRows.push([e,''+divs.length,res?'R'+res.rodada+' ✓':'Pendente',res?res.resolvidoPor||'—':'—']); } }
-        }
+        var r1=bips.filter(function(b){ return b.endereco===e&&(b.rodada||1)===1; });
+        var r2=bips.filter(function(b){ return b.endereco===e&&(b.rodada||1)===2; });
+        if (r2.length){ var divs=_calcDivergencias(r1,r2); if(divs.length){ var res=resolucoes[e]; divRows.push('<tr><td style="font-family:monospace;font-weight:700">'+e+'</td><td style="text-align:center">'+divs.length+'</td><td>'+(res?'R'+res.rodada+' ok':'Pendente')+'</td><td>'+(res?res.resolvidoPor||'-':'-')+'</td></tr>'); } }
       });
       if (divRows.length) {
-        if (y>240) { doc.addPage(); y=14; }
-        doc.setFont('helvetica','bold'); doc.setFontSize(10);
-        doc.text('Divergências de Auditoria',14,y); y+=3;
-        doc.autoTable({startY:y,head:[['Endereço','Itens divergentes','Resolução','Resolvido por']],body:divRows,theme:'striped',headStyles:{fillColor:[220,53,69],textColor:[255,255,255],fontStyle:'bold'},styles:{fontSize:8},margin:{left:14,right:14}});
+        divSection='<h3 style="margin:16px 0 6px;color:#c0392b">Divergencias de Auditoria</h3>'
+          +'<table><thead><tr><th>Endereco</th><th style="text-align:center">Itens divergentes</th><th>Resolucao</th><th>Resolvido por</th></tr></thead>'
+          +'<tbody>'+divRows.join('')+'</tbody></table>';
       }
-      _baixarPDF(doc, (inv.nome||'inventario').replace(/[^a-z0-9]/gi,'_')+'_relatorio.pdf');
-    });
+    }
+    var css='*{box-sizing:border-box;margin:0;padding:0}'
+      +'body{font-family:Arial,sans-serif;font-size:12px;color:#111}'
+      +'.ph{background:#FFC600;padding:14px 20px 12px}'
+      +'.ph h1{font-size:17px;font-weight:700;margin-bottom:4px}'
+      +'.ph p{font-size:11px;color:#333}'
+      +'.ct{padding:14px 20px}'
+      +'.stats{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}'
+      +'.sb{flex:1;min-width:90px;background:#f8f8f8;border:1px solid #e0e0e0;border-radius:6px;padding:8px 12px;text-align:center}'
+      +'.sb strong{display:block;font-size:20px;color:#111}'
+      +'.sb span{font-size:10px;color:#666}'
+      +'h3{margin:0 0 6px;font-size:13px;font-weight:700}'
+      +'table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px}'
+      +'th{background:#e8e8e8;padding:5px 8px;text-align:left;border:1px solid #ccc;font-size:10px}'
+      +'td{padding:4px 8px;border-bottom:1px solid #eee}'
+      +'@media print{@page{margin:12mm}}';
+    var html='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatorio - '+inv.nome+'</title><style>'+css+'</style></head>'
+      +'<body><div class="ph"><h1>FC360 &mdash; Relatorio de Inventario</h1>'
+      +'<p>'+inv.nome+' &nbsp;|&nbsp; Status: '+inv.status.toUpperCase()+' &nbsp;|&nbsp; Gerado: '+dtStr+'</p></div>'
+      +'<div class="ct">'
+      +'<div class="stats">'
+      +'<div class="sb"><strong>'+enderecos.length+'</strong><span>Enderecos</span></div>'
+      +'<div class="sb"><strong>'+bips.length+'</strong><span>Total bipagens</span></div>'
+      +'<div class="sb"><strong>'+uniqueEANs.length+'</strong><span>EANs unicos</span></div>'
+      +'<div class="sb"><strong>'+bipFiltradas.length+'</strong><span>Bipagens validas</span></div>'
+      +'</div>'
+      +'<h3>Detalhamento por Endereco</h3>'
+      +'<table><thead><tr><th>Endereco</th><th>Modo</th><th>Coletores</th><th style="text-align:center">Bipagens</th><th>Status</th></tr></thead>'
+      +'<tbody>'+endRows+'</tbody></table>'
+      +divSection
+      +'</div></body></html>';
+    var w=window.open('','_blank','width=900,height=700');
+    if(w){ w.document.write(html); w.document.close(); w.onload=function(){ w.print(); }; }
+    else showToast('Permita pop-ups para gerar o relatorio.');
   });
 }
 
-// Helper: faz download do PDF no mobile e desktop
-function _baixarPDF(doc, filename) {
-  var blob = doc.output('blob');
-  try {
-    if (navigator.share) {
-      var file = new File([blob], filename, {type:'application/pdf'});
-      navigator.share({files:[file], title:filename}).catch(function(){
-        _triggerDownload(blob, filename);
-      });
-      return;
-    }
-  } catch(e) {}
-  _triggerDownload(blob, filename);
-}
-function _triggerDownload(blob, filename) {
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
-}
-
-// ── PDF de Bipagens por Endereco ───────────────────────────────────────────
+// ── PDF Bipagens por Endereco — respeita filtros ativos ────────────────────
 function gerarPDFBipagens() {
-  if (!_invAtivo) { alert('Nenhum inventario ativo.'); return; }
-  var jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDFCtor) { alert('PDF nao carregou. Verifique sua conexao.'); return; }
-  var inv = _invAtivo;
-  var now = new Date();
-  var dtStr = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-
+  if (!_invAtivo) return;
+  var inv=_invAtivo;
+  var filtroEnd=(document.getElementById('inv-bip-filter')||{}).value||null;
+  var filtroCol=(document.getElementById('inv-bip-col-filter')||{}).value||null;
+  var filtroSetor=(document.getElementById('inv-bip-setor-filter')||{}).value||null;
   loadBipagensByInv(inv.id, function(bips) {
-    if (!bips.length) { alert('Nenhuma bipagem registrada neste inventario.'); return; }
+    var bipsFilt=bips.filter(function(b){
+      if(filtroEnd&&b.endereco!==filtroEnd) return false;
+      if(filtroCol&&b.coletorId!==filtroCol) return false;
+      if(filtroSetor&&(b.setor||'')!==filtroSetor) return false;
+      return true;
+    });
+    if(!bipsFilt.length){ showToast('Nenhuma bipagem com o filtro atual.'); return; }
     loadCatalogoByInv(inv.id, function(cat) {
-      try {
-        var doc = new jsPDFCtor({orientation:'portrait', unit:'mm', format:'a4'});
-
-        doc.setFillColor(255, 198, 0);
-        doc.rect(0, 0, 210, 28, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(17, 17, 17);
-        doc.text('FC360 - Bipagens por Endereco', 14, 12);
-        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-        doc.text(inv.nome, 14, 19);
-        doc.text('Gerado: ' + dtStr + '  |  Total: ' + bips.length + ' bipagens', 14, 25);
-
-        // Agrupa por endereco -> EAN -> qty somada
-        var endMap = {};
-        bips.forEach(function(b) {
-          var end = b.endereco || '(sem endereco)';
-          if (!endMap[end]) endMap[end] = {setor:'', eans:{}, coletores:{}};
-          var slot = endMap[end];
-          if (b.setor && !slot.setor) slot.setor = b.setor;
-          var ean = b.ean || '-';
-          slot.eans[ean] = (slot.eans[ean] || 0) + (b.qty || 1);
-          if (b.coletorId) slot.coletores[b.coletorId] = b.coletorNome || b.coletorId;
+      var now=new Date();
+      var dtStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      var filtroDesc=[];
+      if(filtroEnd) filtroDesc.push('Endereco: '+filtroEnd);
+      if(filtroSetor) filtroDesc.push('Setor: '+filtroSetor);
+      if(filtroCol) filtroDesc.push('Coletor: '+filtroCol);
+      var filtroStr=filtroDesc.length?filtroDesc.join(' | '):'Todos';
+      var endMap={};
+      bipsFilt.forEach(function(b){
+        var end=b.endereco||'(sem endereco)';
+        if(!endMap[end]) endMap[end]={setor:'',eans:{},coletores:{}};
+        var slot=endMap[end];
+        if(b.setor&&!slot.setor) slot.setor=b.setor;
+        slot.eans[b.ean]=(slot.eans[b.ean]||0)+(b.qty||1);
+        if(b.coletorId) slot.coletores[b.coletorId]=b.coletorNome||b.coletorId;
+      });
+      var enderecos=Object.keys(endMap).sort();
+      var grandTotal=0;
+      var bodyHtml=enderecos.map(function(end){
+        var slot=endMap[end];
+        var setor=slot.setor;
+        var coletores=Object.keys(slot.coletores).map(function(id){ return slot.coletores[id]; }).join(', ')||'-';
+        var bg=setor==='ESTOQUE'?'#e8f0ff':setor==='LOJA'?'#fff8e1':'#f0f0f0';
+        var bc=setor==='ESTOQUE'?'#1a3c9c':setor==='LOJA'?'#b38600':'#999';
+        var eanRows=Object.keys(slot.eans).sort().map(function(ean){
+          var qty=slot.eans[ean];
+          var desc=(cat[ean]&&cat[ean].desc)||'-';
+          return '<tr><td style="font-family:monospace;font-size:10px">'+ean+'</td><td>'+desc+'</td><td style="text-align:center;font-weight:700">'+qty+'</td></tr>';
         });
-
-        var enderecos = Object.keys(endMap).sort();
-        var grandTotal = 0;
-
-        enderecos.forEach(function(end) {
-          var slot = endMap[end];
-          var setor = slot.setor;
-          var coletores = Object.keys(slot.coletores).map(function(id){ return slot.coletores[id]; }).join(', ') || '-';
-          var eanRows = Object.keys(slot.eans).sort().map(function(ean) {
-            var qty = slot.eans[ean];
-            var desc = (cat[ean] && cat[ean].desc) ? cat[ean].desc : '-';
-            return [ean, desc, qty];
-          });
-          var sub = eanRows.reduce(function(s, r) { return s + r[2]; }, 0);
-          grandTotal += sub;
-
-          // Cabecalho do endereco desenhado manualmente
-          var startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 5 : 36;
-          if (startY > 262) { doc.addPage(); startY = 14; }
-
-          var bgR = 240, bgG = 240, bgB = 240;
-          if (setor === 'ESTOQUE') { bgR=232; bgG=240; bgB=255; }
-          else if (setor === 'LOJA') { bgR=255; bgG=248; bgB=225; }
-          doc.setFillColor(bgR, bgG, bgB);
-          doc.rect(14, startY, 182, 12, 'F');
-          doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(17, 17, 17);
-          doc.text(end + (setor ? ' [' + setor + ']' : ''), 17, startY + 5);
-          doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(80, 80, 80);
-          doc.text('Coletores: ' + coletores, 17, startY + 10);
-
-          // Tabela de EANs
-          var nDataRows = eanRows.length;
-          doc.autoTable({
-            startY: startY + 13,
-            head: [['EAN', 'Descricao', 'Qtd']],
-            body: eanRows.concat([['', 'Subtotal', sub]]),
-            theme: 'striped',
-            headStyles: {fillColor: [210, 210, 210], textColor: [17,17,17], fontStyle: 'bold', fontSize: 8},
-            bodyStyles: {fontSize: 8},
-            columnStyles: {0:{cellWidth: 38, font: 'courier', fontSize: 7}, 2:{halign: 'center', cellWidth: 14}},
-            didParseCell: function(data) {
-              if (data.section === 'body' && data.row.index === nDataRows) {
-                data.cell.styles.fillColor = [245, 245, 245];
-                data.cell.styles.fontStyle = 'bold';
-              }
-            },
-            margin: {left: 14, right: 14}
-          });
-        });
-
-        var finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 6 : 40;
-        if (finalY > 272) { doc.addPage(); finalY = 20; }
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(17, 17, 17);
-        doc.text('TOTAL GERAL: ' + grandTotal + ' unidades | ' + enderecos.length + ' enderecos', 14, finalY);
-
-        _baixarPDF(doc, (inv.nome||'inventario').replace(/[^a-z0-9]/gi,'_') + '_bipagens.pdf');
-      } catch(e) {
-        alert('Erro ao gerar PDF: ' + e.message);
-      }
+        var sub=Object.keys(slot.eans).reduce(function(s,k){ return s+slot.eans[k]; },0);
+        grandTotal+=sub;
+        return '<div style="margin-bottom:14px;break-inside:avoid">'
+          +'<div style="padding:7px 10px;font-size:12px;font-weight:700;background:'+bg+';border-left:3px solid '+bc+';border-radius:3px">'
+          +end+(setor?' ['+setor+']':'')
+          +'<span style="font-weight:400;font-size:10px;margin-left:10px;color:#555">Coletores: '+coletores+'</span></div>'
+          +'<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px">'
+          +'<thead><tr><th style="background:#e8e8e8;padding:4px 8px;text-align:left;border:1px solid #ccc;width:100px">EAN</th>'
+          +'<th style="background:#e8e8e8;padding:4px 8px;text-align:left;border:1px solid #ccc">Descricao</th>'
+          +'<th style="background:#e8e8e8;padding:4px 8px;text-align:center;border:1px solid #ccc;width:45px">Qtd</th></tr></thead>'
+          +'<tbody>'+eanRows.join('')
+          +'<tr style="background:#f0f0f0"><td></td><td style="padding:4px 8px;font-weight:700;border-bottom:1px solid #ddd">Subtotal</td><td style="padding:4px 8px;text-align:center;font-weight:700;border-bottom:1px solid #ddd">'+sub+'</td></tr>'
+          +'</tbody></table></div>';
+      }).join('');
+      var html='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Bipagens - '+inv.nome+'</title>'
+        +'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12px;color:#111}'
+        +'.ph{background:#FFC600;padding:14px 20px 12px}.ph h1{font-size:17px;font-weight:700;margin-bottom:4px}'
+        +'.ph p{font-size:11px;color:#333}.fi{background:#f0f0f0;padding:6px 20px;font-size:11px;color:#555;border-bottom:1px solid #ddd}'
+        +'.ct{padding:14px 20px}td{padding:4px 8px;border-bottom:1px solid #eee}'
+        +'@media print{@page{margin:12mm}}</style></head>'
+        +'<body><div class="ph"><h1>FC360 &mdash; Bipagens por Endereco</h1>'
+        +'<p>'+inv.nome+' &nbsp;|&nbsp; Gerado: '+dtStr+' &nbsp;|&nbsp; '+bipsFilt.length+' bipagens</p></div>'
+        +'<div class="fi">Filtro: '+filtroStr+'</div>'
+        +'<div class="ct">'+bodyHtml
+        +'<div style="margin-top:16px;padding:10px 14px;background:#111;color:#FFC600;font-size:14px;font-weight:700;border-radius:4px">'
+        +'TOTAL GERAL: '+grandTotal+' unidades &nbsp;|&nbsp; '+enderecos.length+' endereco(s)</div>'
+        +'</div></body></html>';
+      var w=window.open('','_blank','width=900,height=700');
+      if(w){ w.document.write(html); w.document.close(); w.onload=function(){ w.print(); }; }
+      else showToast('Permita pop-ups para gerar o relatorio.');
     });
   });
 }
