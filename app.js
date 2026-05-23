@@ -7674,6 +7674,8 @@ function _confirmarSetorFila(invId, found, setor) {
   var upd={}; upd['fila.'+found]={userId:u.id,coletorId:coletorId,nome:displayNome,setor:setor,desde:firebase.firestore.FieldValue.serverTimestamp(),concluido:false};
   db.collection('inv_inventarios').doc(invId).update(upd).then(function(){
     _filaEndAtual={invId:invId,endereco:found,setor:setor};
+    // Garante que o inv está marcado no localStorage para a verificação de troca de inventário
+    if (!localStorage.getItem(_COLETOR_INV_KEY)) localStorage.setItem(_COLETOR_INV_KEY, invId);
     loadInventariosFromFirebase(function(){ renderColeta(); });
   }).catch(function(e){ alert('Erro ao entrar no endereço: '+e.message); });
 }
@@ -7836,7 +7838,9 @@ function renderColeta() {
   var _anyAberto=(S.invsCache||[]).find(function(i){ return i.status==='aberto'; });
   if(_anyAberto){
     var _savedInv=localStorage.getItem(_COLETOR_INV_KEY);
-    if(!_savedInv||_savedInv!==_anyAberto.id){
+    // Só limpa se há um inv salvo E ele é diferente do atual (troca de inventário)
+    // Se _savedInv é null, mantém o ID — usuário pode ter registrado antes desta feature
+    if(_savedInv && _savedInv!==_anyAberto.id){
       localStorage.removeItem(_COLETOR_KEY);
       localStorage.removeItem(_COLETOR_NOME_KEY);
       localStorage.removeItem(_COLETOR_INV_KEY);
