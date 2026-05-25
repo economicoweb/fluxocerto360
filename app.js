@@ -751,7 +751,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '121';
+    var _BUILD = '122';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -5231,13 +5231,24 @@ function _enviarWhatsAppConfirmar() {
   if (modal) modal.remove();
   var pendencias = getPendencias();
   var hoje = new Date().toLocaleDateString('pt-BR');
-  var loja = S.currentUser ? (S.currentUser.loja||'esta loja') : 'esta loja';
-  var msg = '⚠️ *Fluxo Certo 360 — Checklists Pendentes*\n';
-  msg += '📅 '+hoje+' | 🏪 '+loja+'\n\n';
+  var u = S.currentUser;
+  var loja = (u && u.loja) ? u.loja : (u && u.nome ? u.nome : 'Fluxo Certo 360');
+  var atrasados = pendencias.filter(function(p){ return p.atrasado; }).length;
+  var msg = '⚠️ *Fluxo Certo 360 — Alertas*\n';
+  msg += '📅 '+hoje+' | 🏪 '+loja+'\n';
   if (pendencias.length) {
-    pendencias.forEach(function(p){ msg += (p.atrasado?'🔴':'🟡')+' '+p.cl.nome+' ('+p.cl.setor+')\n'; });
+    msg += '📋 *'+pendencias.length+' checklist(s) pendente(s)*';
+    if (atrasados) msg += ' — *'+atrasados+' ATRASADO(S)*';
+    msg += '\n\n';
+    pendencias.forEach(function(p){
+      if (p.atrasado) {
+        msg += '🔴 *'+p.cl.nome+'* ('+p.cl.setor+')\n   ⚠️ ATRASADO — limite: '+p.horaLimite+'\n';
+      } else {
+        msg += '🟡 '+p.cl.nome+' ('+p.cl.setor+') — limite: '+p.horaLimite+'\n';
+      }
+    });
   } else {
-    msg += '✅ Todos os checklists foram enviados!';
+    msg += '\n✅ Todos os checklists foram enviados!';
   }
   window.open('https://wa.me/55'+num+'?text='+encodeURIComponent(msg), '_blank');
 }
