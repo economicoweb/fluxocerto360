@@ -758,7 +758,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '127';
+    var _BUILD = '128';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -3269,7 +3269,7 @@ var editingUserId=null, userFilter='todos';
 function abrirModalUser() {
   editingUserId=null;
   document.getElementById('mu-title').textContent='Novo Usuário';
-  ['u-nome','u-email','u-senha','u-senha2','u-cargo','u-loja'].forEach(function(id){document.getElementById(id).value='';});
+  ['u-nome','u-email','u-senha','u-senha2','u-cargo','u-loja','u-telefone'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('u-perfil').value='operator';
   document.getElementById('u-setor').value='Geral';
   document.getElementById('mu-err').style.display='none';
@@ -3296,6 +3296,7 @@ function editarUser(id) {
   document.getElementById('u-setor').value=u.setor||'Geral';
   document.getElementById('u-cargo').value=u.cargo||'';
   document.getElementById('u-loja').value=u.loja||'';
+  document.getElementById('u-telefone').value=u.telefone||'';
   document.getElementById('mu-err').style.display='none';
   var hint=document.getElementById('senha-hint');
   if (hint) hint.textContent='(em branco = manter atual)';
@@ -3311,6 +3312,7 @@ function salvarUser() {
   var setor=document.getElementById('u-setor').value;
   var cargo=document.getElementById('u-cargo').value.trim();
   var loja=document.getElementById('u-loja').value.trim();
+  var telefone=(document.getElementById('u-telefone').value||'').replace(/\D/g,'');
   var err=document.getElementById('mu-err');
   if (!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
   if (!email||email.indexOf('@')<0){err.textContent='E-mail inválido.';err.style.display='block';return;}
@@ -3328,11 +3330,11 @@ function salvarUser() {
       var existing = users.find(function(u){return u.id===editingUserId;}) || {};
       // Admin nunca perde o perfil 'admin' pelo select (select não tem essa opção)
       var perfilFinal = editingUserId==='admin' ? 'admin' : perfil;
-      var updates = {nome:nome, email:email, perfil:perfilFinal, setor:setor, cargo:cargo, loja:loja};
+      var updates = {nome:nome, email:email, perfil:perfilFinal, setor:setor, cargo:cargo, loja:loja, telefone:telefone};
       if (senhaFinal) updates.senha = senhaFinal;
       users=users.map(function(u){return u.id===editingUserId?Object.assign({},u,updates):u;});
     } else {
-      users.push({id:genId(),nome:nome,email:email,senha:senhaFinal,perfil:perfil,setor:setor,cargo:cargo,loja:loja,ativo:true});
+      users.push({id:genId(),nome:nome,email:email,senha:senhaFinal,perfil:perfil,setor:setor,cargo:cargo,loja:loja,telefone:telefone,ativo:true});
     }
     saveUsers(users);
     fecharModalUser();
@@ -5470,35 +5472,7 @@ function confirmarComAssinatura() {
 // ===========================================
 // WHATSAPP
 // ===========================================
-function enviarWhatsApp() {
-  var numSalvo = localStorage.getItem('cahu360_wp_numero') || '';
-  // window.prompt não funciona em PWA standalone — usa modal próprio
-  var existing = document.getElementById('modal-wp-numero');
-  if (existing) existing.remove();
-  var html =
-    '<div id="modal-wp-numero" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;padding:20px">'+
-    '<div style="background:#fff;border-radius:18px;padding:28px 24px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:6px">📱 Avisar pelo WhatsApp</div>'+
-      '<div style="font-size:13px;color:#666;margin-bottom:16px">Digite o DDD + número (apenas dígitos).<br>Ex: <b>11999990000</b></div>'+
-      '<input id="wp-num-input" type="tel" inputmode="numeric" maxlength="15" value="'+numSalvo+'" placeholder="Ex: 11999990000" '+
-        'style="width:100%;padding:13px 14px;border:2px solid #FFC600;border-radius:10px;font-size:18px;font-family:monospace;letter-spacing:2px;box-sizing:border-box;margin-bottom:16px;outline:none"/>'+
-      '<div style="display:flex;gap:10px">'+
-        '<button onclick="document.getElementById(\'modal-wp-numero\').remove()" style="flex:1;padding:13px;background:#fff;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;color:#555">Cancelar</button>'+
-        '<button onclick="_enviarWhatsAppConfirmar()" style="flex:2;padding:13px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Enviar WhatsApp</button>'+
-      '</div>'+
-    '</div></div>';
-  document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(function(){ var el=document.getElementById('wp-num-input'); if(el){ el.focus(); el.select(); } }, 80);
-}
-
-function _enviarWhatsAppConfirmar() {
-  var el = document.getElementById('wp-num-input');
-  if (!el) return;
-  var num = el.value.replace(/\D/g,'');
-  if (num.length < 10) { el.style.borderColor='#c0392b'; el.focus(); return; }
-  localStorage.setItem('cahu360_wp_numero', num);
-  var modal = document.getElementById('modal-wp-numero');
-  if (modal) modal.remove();
+function _wpMontarMsg(nomeDestinatario) {
   var pendencias = getPendencias();
   var hoje = new Date().toLocaleDateString('pt-BR');
   var u = S.currentUser;
@@ -5506,21 +5480,80 @@ function _enviarWhatsAppConfirmar() {
   var atrasados = pendencias.filter(function(p){ return p.atrasado; }).length;
   var msg = '⚠️ *Fluxo Certo 360 — Alertas*\n';
   msg += '📅 '+hoje+' | 🏪 '+loja+'\n';
+  if (nomeDestinatario) msg += '📣 Para: *'+nomeDestinatario+'*\n';
   if (pendencias.length) {
     msg += '📋 *'+pendencias.length+' checklist(s) pendente(s)*';
     if (atrasados) msg += ' — *'+atrasados+' ATRASADO(S)*';
     msg += '\n\n';
     pendencias.forEach(function(p){
-      if (p.atrasado) {
-        msg += '🔴 *'+p.cl.nome+'* ('+p.cl.setor+')\n   ⚠️ ATRASADO — limite: '+p.horaLimite+'\n';
-      } else {
-        msg += '🟡 '+p.cl.nome+' ('+p.cl.setor+') — limite: '+p.horaLimite+'\n';
-      }
+      msg += (p.atrasado ? '🔴 *'+p.cl.nome+'* ('+p.cl.setor+')\n   ⚠️ ATRASADO — limite: '+p.horaLimite+'\n'
+                         : '🟡 '+p.cl.nome+' ('+p.cl.setor+') — limite: '+p.horaLimite+'\n');
     });
   } else {
     msg += '\n✅ Todos os checklists foram enviados!';
   }
-  window.open('https://wa.me/55'+num+'?text='+encodeURIComponent(msg), '_blank');
+  return msg;
+}
+
+function enviarWhatsApp() {
+  var existing = document.getElementById('modal-wp-contatos');
+  if (existing) { existing.remove(); return; }
+
+  // Usuários com telefone cadastrado
+  var contatos = getUsers().filter(function(u){ return u.ativo && u.telefone && u.telefone.length >= 10; });
+  var numSalvo = localStorage.getItem('cahu360_wp_numero') || '';
+  var perfisLabel = {gerencia:'Gerência', operator:'Operador', prevencao:'Prevenção', supervisor:'Supervisão', admin:'Admin'};
+
+  var listaHtml;
+  if (contatos.length) {
+    listaHtml =
+      '<div style="font-size:12px;color:var(--t3);margin-bottom:10px">Clique no nome para abrir o WhatsApp direto:</div>'+
+      '<div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto">'+
+      contatos.map(function(c){
+        var pfLabel = perfisLabel[c.perfil]||c.perfil;
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f6fef9;border:1.5px solid #25D366;border-radius:10px;cursor:pointer" onclick="_wpAbrirContato(\''+c.telefone+'\',\''+c.nome.replace(/'/g,"\\'")+'\')">'
+          +'<div style="font-size:22px">📱</div>'
+          +'<div style="flex:1">'
+          +'<div style="font-size:13px;font-weight:700;color:var(--t)">'+c.nome+'</div>'
+          +'<div style="font-size:11px;color:var(--t3)">'+pfLabel+(c.loja?' · '+c.loja:'')+'</div>'
+          +'</div>'
+          +'<div style="font-size:12px;font-family:monospace;color:#25D366;font-weight:700">'+c.telefone+'</div>'
+          +'</div>';
+      }).join('')+
+      '</div>';
+  } else {
+    listaHtml =
+      '<div style="font-size:13px;color:var(--t3);margin-bottom:14px">Nenhum usuário com telefone cadastrado.<br>Cadastre o WhatsApp em <b>Usuários → Editar</b>.</div>'+
+      '<div style="margin-bottom:6px"><label style="font-size:12px;font-weight:700;color:var(--t2);display:block;margin-bottom:6px">Ou informe um número manualmente:</label>'+
+      '<input id="wp-num-manual" type="tel" inputmode="numeric" maxlength="15" value="'+numSalvo+'" placeholder="Ex: 11999990000" '+
+        'style="width:100%;padding:11px 13px;border:2px solid #25D366;border-radius:9px;font-size:16px;font-family:monospace;letter-spacing:1px;box-sizing:border-box" '+
+        'onkeydown="if(event.key===\'Enter\')_wpAbrirManual()"/></div>'+
+      '<button onclick="_wpAbrirManual()" style="width:100%;padding:12px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px">Enviar WhatsApp</button>';
+  }
+
+  var html =
+    '<div id="modal-wp-contatos" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;padding:20px">'+
+    '<div style="background:#fff;border-radius:18px;padding:24px 22px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">📱 Avisar pelo WhatsApp</div>'+
+      '<div style="font-size:12px;color:var(--t3);margin-bottom:14px">Mensagem com os checklists pendentes do momento.</div>'+
+      listaHtml+
+      '<button onclick="document.getElementById(\'modal-wp-contatos\').remove()" style="width:100%;padding:11px;background:#fff;border:1.5px solid var(--gray2);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--t2);margin-top:10px">Fechar</button>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function _wpAbrirContato(tel, nome) {
+  var msg = _wpMontarMsg(nome);
+  window.open('https://wa.me/55'+tel+'?text='+encodeURIComponent(msg), '_blank');
+}
+
+function _wpAbrirManual() {
+  var el = document.getElementById('wp-num-manual'); if(!el) return;
+  var num = el.value.replace(/\D/g,'');
+  if (num.length < 10) { el.style.borderColor='#c0392b'; el.focus(); return; }
+  localStorage.setItem('cahu360_wp_numero', num);
+  document.getElementById('modal-wp-contatos').remove();
+  window.open('https://wa.me/55'+num+'?text='+encodeURIComponent(_wpMontarMsg('')), '_blank');
 }
 
 function exportarPDF(tipo) {
