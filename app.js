@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '141';
+    var _BUILD = '142';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -9714,6 +9714,7 @@ function voltarInvLista() {
   _invAtivo=null;
   document.getElementById('inv-lista-wrap').style.display='block';
   document.getElementById('inv-detalhe-wrap').style.display='none';
+  renderInvList();
 }
 
 // ── _eanEnterKey — Enter no campo EAN: vai pra qty se reconhecido ─────────
