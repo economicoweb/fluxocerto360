@@ -91,7 +91,7 @@ function forcarAtualizacao() {
   }
   Promise.all(limpar).then(function() {
     sessionStorage.removeItem('eco_last_page');
-    sessionStorage.removeItem('inv_detalhe_state');
+    localStorage.removeItem('inv_detalhe_state');
     window.location.reload(true);
   });
 }
@@ -758,11 +758,11 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '133';
+    var _BUILD = '134';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
-      sessionStorage.removeItem('inv_detalhe_state');
+      localStorage.removeItem('inv_detalhe_state');
     }
     var lastPage = sessionStorage.getItem('eco_last_page');
     var pagesForRole = {
@@ -842,6 +842,7 @@ function finalizarLogin(found) {
 function doLogout() {
   sessionStorage.removeItem('eco_session');
   sessionStorage.removeItem('eco_last_page');
+  localStorage.removeItem('inv_detalhe_state');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('app').style.display='none';
   document.querySelectorAll('.sb-item').forEach(function(i){i.classList.remove('active');});
@@ -948,7 +949,7 @@ var PAGE_TITLES = {
 
 function nav(page, el) {
   sessionStorage.setItem('eco_last_page', page);
-  if (page !== 'inv') sessionStorage.removeItem('inv_detalhe_state');
+  if (page !== 'inv') localStorage.removeItem('inv_detalhe_state');
   // Close sidebar on mobile when navigating
   if (window.innerWidth <= 768) {
     var sb = document.querySelector('.sb');
@@ -9597,14 +9598,14 @@ function atualizarNavColeta() {
   colItem.style.display=temAberto?'flex':'none';
 
   // Restaura detalhe de inventário após reload
-  var raw=sessionStorage.getItem('inv_detalhe_state');
+  var raw=localStorage.getItem('inv_detalhe_state');
   if (!raw) return;
   try {
     var st=JSON.parse(raw);
     if (!st||!st.invId) return;
     var inv=(S.invsCache||[]).find(function(i){ return i.id===st.invId; });
     if (!inv) return;
-    sessionStorage.removeItem('inv_detalhe_state');
+    localStorage.removeItem('inv_detalhe_state');
     // Garante que estamos no painel inv
     var panel=document.getElementById('panel-inv');
     if (panel&&!panel.classList.contains('active')) {
@@ -9615,18 +9616,36 @@ function atualizarNavColeta() {
   } catch(e){}
 }
 
+// ── Realtime listener para aba Endereços ─────────────────────────────────────
+var _enderecosListenerUnsub = null;
+function _iniciarEnderecosRealtime(invId) {
+  _pararEnderecosRealtime();
+  _enderecosListenerUnsub = db.collection('inv_inventarios').doc(invId).onSnapshot(function(snap) {
+    if (!snap.exists) return;
+    var data = snap.data();
+    _invAtivo = Object.assign({id: invId}, data);
+    var idx = (S.invsCache||[]).findIndex(function(i){ return i.id===invId; });
+    if (idx >= 0) S.invsCache[idx] = _invAtivo;
+    renderInvEnderecos();
+  }, function() { /* erro silencioso */ });
+}
+function _pararEnderecosRealtime() {
+  if (_enderecosListenerUnsub) { _enderecosListenerUnsub(); _enderecosListenerUnsub = null; }
+}
+
 // ── Salva estado do detalhe para restaurar no reload ─────────────────────────
 function switchInvTab(tab,btn) {
-  // Salva estado antes de chamar o original
+  // Salva estado em localStorage (sobrevive ao fechamento do PWA)
   if (_invAtivo) {
-    sessionStorage.setItem('inv_detalhe_state', JSON.stringify({invId:_invAtivo.id,tab:tab}));
+    localStorage.setItem('inv_detalhe_state', JSON.stringify({invId:_invAtivo.id,tab:tab}));
   }
   // Lógica original
   document.querySelectorAll('#inv-detalhe-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
   if (btn) btn.classList.add('on');
   ['enderecos','coletores','dashboard','bipagens','auditoria','exportar'].forEach(function(t){ var el=document.getElementById('inv-tab-'+t); if(el) el.style.display=t===tab?'block':'none'; });
   if (tab!=='dashboard') _pararDashboardRealtime();
-  if (tab==='enderecos') renderInvEnderecos();
+  if (tab!=='enderecos') _pararEnderecosRealtime();
+  if (tab==='enderecos') _iniciarEnderecosRealtime(_invAtivo.id);
   if (tab==='coletores') renderInvColetores();
   if (tab==='dashboard') _iniciarDashboardRealtime(_invAtivo.id);
   if (tab==='bipagens'){ var f=document.getElementById('inv-bip-filter'); var sf=document.getElementById('inv-bip-setor-filter'); renderInvBipagens(f&&f.value||null,null,sf&&sf.value||null); }
@@ -9675,8 +9694,9 @@ function renderInvColetores() {
 }
 
 function voltarInvLista() {
-  sessionStorage.removeItem('inv_detalhe_state');
+  localStorage.removeItem('inv_detalhe_state');
   _pararDashboardRealtime();
+  _pararEnderecosRealtime();
   _invAtivo=null;
   document.getElementById('inv-lista-wrap').style.display='block';
   document.getElementById('inv-detalhe-wrap').style.display='none';
