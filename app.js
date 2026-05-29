@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '143';
+    var _BUILD = '144';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -10170,4 +10170,24 @@ window.addEventListener('beforeunload', function() {
       }
     }
   } catch(e) {}
+})();
+
+// ── São João + Copa — Junho 2026 ──
+(function(){
+  var d=new Date();
+  if(d.getFullYear()!==2026||(d.getMonth()!==5&&!(d.getMonth()===4&&d.getDate()>=29))) return;
+  var H=28;
+  var bar=document.createElement('div');
+  bar.id='fc-festa-bar';
+  bar.style.cssText='position:fixed;top:0;left:0;right:0;height:'+H+'px;z-index:200;display:flex;flex-direction:column';
+  var s=document.createElement('div');
+  s.style.cssText='height:5px;flex-shrink:0;background:repeating-linear-gradient(90deg,#e8281e 0px,#e8281e 20px,#FFC600 20px,#FFC600 40px,#009b3a 40px,#009b3a 60px,#002776 60px,#002776 80px)';
+  var bd=document.createElement('div');
+  bd.style.cssText='flex:1;background:rgba(8,8,8,.96);display:flex;align-items:center;justify-content:center';
+  bd.innerHTML='<span style="font-size:11px;font-weight:600;letter-spacing:.2px;color:rgba(255,255,255,.85);font-family:\'DM Sans\',sans-serif;white-space:nowrap">🎪 <b style="color:#FFC600">São João</b> &amp; <b style="color:#009b3a">Copa 2026</b> — Vai Brasil! ⚽ 🇧🇷</span>';
+  bar.appendChild(s);bar.appendChild(bd);
+  document.body.insertBefore(bar,document.body.firstChild);
+  var css=document.createElement('style');
+  css.textContent='#app{margin-top:'+H+'px!important;height:calc(100vh - '+H+'px)!important}#offline-banner{top:'+H+'px!important}#loginScreen{top:'+H+'px!important;height:calc(100vh - '+H+'px)!important}@media(max-width:768px){#app{height:auto!important;min-height:calc(100vh - '+H+'px)!important}}';
+  document.head.appendChild(css);
 })();
