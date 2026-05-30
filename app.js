@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '149';
+    var _BUILD = '150';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -10270,14 +10270,63 @@ function enviarMensagemIA(textoFixo) {
   var placeholderIdx = _iaHist.length;
   _iaAddMsg('bot', '⏳ Pensando...');
 
-  var perfil = (S.user && S.user.perfil) || 'Gestor';
-  var loja   = (S.user && S.user.loja)   || 'Loja';
-  var nome   = (S.user && S.user.nome)   || 'Usuário';
+  var u      = S.currentUser || {};
+  var perfil = u.perfil || 'Gestor';
+  var loja   = u.loja   || 'Loja';
+  var nome   = u.nome   || 'Usuário';
   var agora  = new Date().toLocaleString('pt-BR');
+  var hoje   = new Date().toLocaleDateString('pt-BR');
+
+  // Coleta dados reais do sistema
+  var resultados    = (typeof getResultados === 'function') ? getResultados() : (S.resultadosCache||[]);
+  var resultHoje    = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hoje)===0; });
+  var invsAbertos   = (S.invsCache||[]).filter(function(i){ return i.status==='aberto'; });
+  var invsEncerrados= (S.invsCache||[]).filter(function(i){ return i.status==='encerrado'; });
+  var sete = new Date(); sete.setDate(sete.getDate()-7);
+  var result7d = resultados.filter(function(r){
+    if(!r.dataHora) return false;
+    try{ var p=r.dataHora.split(' ')[0].split('/'); return new Date(p[2],p[1]-1,p[0])>=sete; }catch(e){return false;}
+  });
+  var reprov7d = result7d.filter(function(r){ return r.reprovado; });
+
+  // Monta contexto com dados reais
+  var ctx = '';
+  ctx += '\n\n=== DADOS REAIS DO SISTEMA (' + agora + ') ===\n';
+  ctx += 'Loja: ' + loja + ' | Usuário: ' + nome + ' (' + perfil + ')\n\n';
+
+  ctx += '>> CHECKLISTS HOJE (' + resultHoje.length + ' concluídos)\n';
+  if(resultHoje.length){
+    resultHoje.forEach(function(r){
+      ctx += '  • ' + (r.checklistNome||r.checklistId||'?') + ' — ' + (r.feitos||0) + '/' + (r.total||0) +
+        ' itens (' + (r.pct||0) + '%)' + (r.reprovado?' ⚠️ REPROVADO':'') + ' | ' + r.operador + ' ' + (r.dataHora||'') + '\n';
+    });
+  } else { ctx += '  (nenhum finalizado ainda hoje)\n'; }
+
+  ctx += '\n>> INVENTÁRIOS EM ANDAMENTO (' + invsAbertos.length + ')\n';
+  if(invsAbertos.length){
+    invsAbertos.forEach(function(i){ ctx += '  • ' + (i.nome||i.id) + ' — iniciado em ' + (i.dataInicio||'?') + '\n'; });
+  } else { ctx += '  (nenhum inventário ativo)\n'; }
+
+  if(invsEncerrados.length){
+    ctx += '\n>> INVENTÁRIOS ENCERRADOS: ' + invsEncerrados.length + '\n';
+    invsEncerrados.slice(-3).forEach(function(i){ ctx += '  • ' + (i.nome||i.id) + '\n'; });
+  }
+
+  ctx += '\n>> ÚLTIMOS 7 DIAS (' + result7d.length + ' checklists | ' + reprov7d.length + ' reprovados)\n';
+  if(reprov7d.length){
+    reprov7d.slice(-5).forEach(function(r){
+      ctx += '  ⚠️ REPROVADO: ' + (r.checklistNome||'?') + ' em ' + (r.dataHora||'?') + ' por ' + (r.operador||'?') + '\n';
+    });
+  }
+  // Ranking de checklists mais executados
+  var freq = {};
+  result7d.forEach(function(r){ var k=r.checklistNome||'?'; freq[k]=(freq[k]||0)+1; });
+  var tops = Object.keys(freq).sort(function(a,b){return freq[b]-freq[a];}).slice(0,3);
+  if(tops.length){ ctx += '  Mais executados: ' + tops.map(function(k){return k+'('+freq[k]+'x)';}).join(', ') + '\n'; }
 
   var sp = 'Você é um assistente de gestão integrado ao Fluxo Certo 360, sistema para supermercados e varejo.\n' +
-    'Usuário: ' + nome + ' | Perfil: ' + perfil + ' | Loja: ' + loja + ' | Agora: ' + agora + '\n' +
-    'Responda SEMPRE em português brasileiro. Seja objetivo, prático e amigável. Use emojis com moderação.';
+    'Responda SEMPRE em português brasileiro. Seja objetivo, prático e amigável. Use emojis com moderação.\n' +
+    'Quando o usuário pedir relatórios ou análises, use os dados reais abaixo para responder com precisão.' + ctx;
 
   // Garante que contents começa com mensagem do usuário (requisito da API)
   var allMsgs = _iaHist.slice(0, placeholderIdx);
