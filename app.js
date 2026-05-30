@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '148';
+    var _BUILD = '149';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -10178,6 +10178,29 @@ window.addEventListener('beforeunload', function() {
 var _GK = ['AQ.Ab8RN6LSeF58U2_0FPlznpW8Y7', 'uXakyjmbJWVqOoF5MrmW6T-w'].join('');
 var _iaHist = [];
 var _iaLoading = false;
+var _iaModel = null;
+
+function _iaGetModel(cb) {
+  if (_iaModel) { cb(_iaModel); return; }
+  fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + _GK)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (data.models && data.models.length) {
+        // Prefere flash, depois qualquer um com generateContent
+        var m = data.models.find(function(m){
+          return (m.supportedGenerationMethods||[]).indexOf('generateContent')>=0 && m.name.indexOf('flash')>=0 && m.name.indexOf('lite')<0;
+        }) || data.models.find(function(m){
+          return (m.supportedGenerationMethods||[]).indexOf('generateContent')>=0;
+        });
+        _iaModel = m ? m.name.replace('models/','') : 'gemini-pro';
+      } else {
+        _iaModel = 'gemini-pro';
+      }
+      console.log('Gemini model escolhido:', _iaModel);
+      cb(_iaModel);
+    })
+    .catch(function(){ _iaModel = 'gemini-pro'; cb(_iaModel); });
+}
 
 var _IA_QUICK = [
   {label: '📊 Desempenho hoje',   msg: 'Como está o desempenho dos checklists hoje? Dê um resumo e dicas.'},
@@ -10264,30 +10287,32 @@ function enviarMensagemIA(textoFixo) {
     return {role: m.r === 'u' ? 'user' : 'model', parts: [{text: m.t}]};
   });
 
-  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + _GK, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      system_instruction: {parts: [{text: sp}]},
-      contents: contents
+  _iaGetModel(function(model) {
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + _GK, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        system_instruction: {parts: [{text: sp}]},
+        contents: contents
+      })
     })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    var resp = 'Não consegui gerar uma resposta. Tente novamente.';
-    try {
-      if (data.error) resp = '⚠️ Erro da API: ' + data.error.message;
-      else resp = data.candidates[0].content.parts[0].text;
-    } catch(e) { console.error('Gemini response:', JSON.stringify(data)); }
-    _iaHist[placeholderIdx] = {r: 'bot', t: resp};
-    _iaLoading = false;
-    _iaRender();
-  })
-  .catch(function(e) {
-    console.error('Gemini fetch error:', e);
-    _iaHist[placeholderIdx] = {r: 'bot', t: '⚠️ Erro de conexão. Verifique a internet e tente novamente.'};
-    _iaLoading = false;
-    _iaRender();
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var resp = 'Não consegui gerar uma resposta. Tente novamente.';
+      try {
+        if (data.error) resp = '⚠️ Erro da API: ' + data.error.message;
+        else resp = data.candidates[0].content.parts[0].text;
+      } catch(e){ console.error('Gemini response:', JSON.stringify(data)); }
+      _iaHist[placeholderIdx] = {r:'bot', t:resp};
+      _iaLoading = false;
+      _iaRender();
+    })
+    .catch(function(e){
+      console.error('Gemini fetch error:', e);
+      _iaHist[placeholderIdx] = {r:'bot', t:'⚠️ Erro de conexão. Verifique a internet e tente novamente.'};
+      _iaLoading = false;
+      _iaRender();
+    });
   });
 }
 
