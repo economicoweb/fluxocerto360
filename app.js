@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '150';
+    var _BUILD = '151';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -10277,56 +10277,111 @@ function enviarMensagemIA(textoFixo) {
   var agora  = new Date().toLocaleString('pt-BR');
   var hoje   = new Date().toLocaleDateString('pt-BR');
 
-  // Coleta dados reais do sistema
-  var resultados    = (typeof getResultados === 'function') ? getResultados() : (S.resultadosCache||[]);
-  var resultHoje    = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hoje)===0; });
-  var invsAbertos   = (S.invsCache||[]).filter(function(i){ return i.status==='aberto'; });
-  var invsEncerrados= (S.invsCache||[]).filter(function(i){ return i.status==='encerrado'; });
+  // ── coleta dados reais ──────────────────────────────
+  var resultados     = (typeof getResultados==='function') ? getResultados() : (S.resultadosCache||[]);
+  var resultHoje     = resultados.filter(function(r){ return r.dataHora&&r.dataHora.indexOf(hoje)===0; });
+  var invsAbertos    = (S.invsCache||[]).filter(function(i){ return i.status==='aberto'; });
+  var invsEncerrados = (S.invsCache||[]).filter(function(i){ return i.status==='encerrado'; });
   var sete = new Date(); sete.setDate(sete.getDate()-7);
-  var result7d = resultados.filter(function(r){
-    if(!r.dataHora) return false;
-    try{ var p=r.dataHora.split(' ')[0].split('/'); return new Date(p[2],p[1]-1,p[0])>=sete; }catch(e){return false;}
+  function _dePt(dh){ try{ var p=dh.split(' ')[0].split('/'); return new Date(p[2],p[1]-1,p[0]); }catch(e){ return new Date(0); } }
+  var result7d   = resultados.filter(function(r){ return r.dataHora&&_dePt(r.dataHora)>=sete; });
+  var reprov7d   = result7d.filter(function(r){ return r.reprovado; });
+  var planos     = (typeof getPlanos==='function') ? getPlanos() : [];
+  var planosLoja = planos.filter(function(p){ return !p.loja||p.loja===(u.loja||''); });
+  var planosAbertos   = planosLoja.filter(function(p){ return p.status==='aberto'; });
+  var planosAtrasados = planosAbertos.filter(function(p){ return p.prazoFim&&new Date(p.prazoFim)<new Date(); });
+  var perdas     = S.perdaItems||[];
+  var myCLs      = (typeof getMyCLs==='function') ? getMyCLs() : [];
+  var CLsNaoFeitos = myCLs.filter(function(cl){
+    return !resultHoje.some(function(r){ return r.checklistId===cl.id; });
   });
-  var reprov7d = result7d.filter(function(r){ return r.reprovado; });
 
-  // Monta contexto com dados reais
-  var ctx = '';
-  ctx += '\n\n=== DADOS REAIS DO SISTEMA (' + agora + ') ===\n';
-  ctx += 'Loja: ' + loja + ' | Usuário: ' + nome + ' (' + perfil + ')\n\n';
-
-  ctx += '>> CHECKLISTS HOJE (' + resultHoje.length + ' concluídos)\n';
-  if(resultHoje.length){
-    resultHoje.forEach(function(r){
-      ctx += '  • ' + (r.checklistNome||r.checklistId||'?') + ' — ' + (r.feitos||0) + '/' + (r.total||0) +
-        ' itens (' + (r.pct||0) + '%)' + (r.reprovado?' ⚠️ REPROVADO':'') + ' | ' + r.operador + ' ' + (r.dataHora||'') + '\n';
+  // ── itens que mais falham nos últimos 7 dias ─────────
+  var falhasMap = {};
+  result7d.forEach(function(r){
+    if(!r.itens) return;
+    r.itens.forEach(function(it){
+      if(!it.feito && it.texto){
+        var k = it.texto.trim();
+        if(!falhasMap[k]) falhasMap[k]={n:0,critico:it.critico};
+        falhasMap[k].n++;
+        if(it.critico) falhasMap[k].critico=true;
+      }
     });
-  } else { ctx += '  (nenhum finalizado ainda hoje)\n'; }
+  });
+  var topFalhas = Object.keys(falhasMap).sort(function(a,b){ return falhasMap[b].n-falhasMap[a].n; }).slice(0,8);
 
-  ctx += '\n>> INVENTÁRIOS EM ANDAMENTO (' + invsAbertos.length + ')\n';
-  if(invsAbertos.length){
-    invsAbertos.forEach(function(i){ ctx += '  • ' + (i.nome||i.id) + ' — iniciado em ' + (i.dataInicio||'?') + '\n'; });
-  } else { ctx += '  (nenhum inventário ativo)\n'; }
+  // ── performance por operador (7 dias) ────────────────
+  var opMap = {};
+  result7d.forEach(function(r){
+    var op = r.operador||'?';
+    if(!opMap[op]) opMap[op]={total:0,reprov:0,pctSum:0};
+    opMap[op].total++;
+    if(r.reprovado) opMap[op].reprov++;
+    opMap[op].pctSum+=(r.pct||0);
+  });
 
-  if(invsEncerrados.length){
-    ctx += '\n>> INVENTÁRIOS ENCERRADOS: ' + invsEncerrados.length + '\n';
-    invsEncerrados.slice(-3).forEach(function(i){ ctx += '  • ' + (i.nome||i.id) + '\n'; });
+  // ── monta contexto ───────────────────────────────────
+  var ctx = '\n\n=== DADOS REAIS DO SISTEMA (' + agora + ') ===\n';
+  ctx += 'Loja: ' + loja + ' | Usuário: ' + nome + ' (' + perfil + ')\n';
+
+  // Checklists hoje
+  ctx += '\n>> CHECKLISTS HOJE (' + resultHoje.length + ' concluídos';
+  if(CLsNaoFeitos.length) ctx += ' | ' + CLsNaoFeitos.length + ' PENDENTES';
+  ctx += ')\n';
+  resultHoje.forEach(function(r){
+    ctx += '  ✅ ' + (r.checklistNome||'?') + ' — ' + (r.feitos||0) + '/' + (r.total||0) + ' itens (' + (r.pct||0) + '%)' + (r.reprovado?' ⚠️REPROVADO':'') + ' por ' + r.operador + '\n';
+  });
+  if(CLsNaoFeitos.length){
+    ctx += '  AINDA NÃO FEITOS HOJE:\n';
+    CLsNaoFeitos.slice(0,8).forEach(function(cl){ ctx += '  ❌ ' + (cl.label||cl.nome||cl.id) + '\n'; });
   }
 
-  ctx += '\n>> ÚLTIMOS 7 DIAS (' + result7d.length + ' checklists | ' + reprov7d.length + ' reprovados)\n';
-  if(reprov7d.length){
-    reprov7d.slice(-5).forEach(function(r){
-      ctx += '  ⚠️ REPROVADO: ' + (r.checklistNome||'?') + ' em ' + (r.dataHora||'?') + ' por ' + (r.operador||'?') + '\n';
+  // Planos de ação
+  ctx += '\n>> PLANOS DE AÇÃO (' + planosAbertos.length + ' abertos | ' + planosAtrasados.length + ' ATRASADOS)\n';
+  if(planosAtrasados.length){
+    planosAtrasados.slice(0,5).forEach(function(p){
+      ctx += '  🔴 ATRASADO: ' + (p.desc||'?') + ' | Resp: ' + (p.responsavel||'N/A') + ' | Prazo: ' + (p.prazo||p.prazoFim||'?') + '\n';
     });
   }
-  // Ranking de checklists mais executados
-  var freq = {};
-  result7d.forEach(function(r){ var k=r.checklistNome||'?'; freq[k]=(freq[k]||0)+1; });
-  var tops = Object.keys(freq).sort(function(a,b){return freq[b]-freq[a];}).slice(0,3);
-  if(tops.length){ ctx += '  Mais executados: ' + tops.map(function(k){return k+'('+freq[k]+'x)';}).join(', ') + '\n'; }
+  var abertosNaoAtrasados = planosAbertos.filter(function(p){ return !planosAtrasados.includes(p); });
+  abertosNaoAtrasados.slice(0,5).forEach(function(p){
+    ctx += '  🟡 Aberto: ' + (p.desc||'?') + ' | Resp: ' + (p.responsavel||'N/A') + '\n';
+  });
+
+  // Itens que mais falham
+  if(topFalhas.length){
+    ctx += '\n>> ITENS QUE MAIS FALHAM NOS ÚLTIMOS 7 DIAS\n';
+    topFalhas.forEach(function(k){
+      var f=falhasMap[k];
+      ctx += '  ' + (f.critico?'🔴 [CRÍTICO]':'🟡') + ' "' + k + '" — ' + f.n + 'x não concluído\n';
+    });
+  }
+
+  // Performance por operador
+  ctx += '\n>> PERFORMANCE POR OPERADOR (últimos 7 dias)\n';
+  Object.keys(opMap).forEach(function(op){
+    var o=opMap[op];
+    var media=o.total?Math.round(o.pctSum/o.total):0;
+    ctx += '  • ' + op + ': ' + o.total + ' checklist(s), ' + o.reprov + ' reprovado(s), média ' + media + '%\n';
+  });
+
+  // Inventários
+  ctx += '\n>> INVENTÁRIOS (' + invsAbertos.length + ' em andamento | ' + invsEncerrados.length + ' encerrados)\n';
+  invsAbertos.forEach(function(i){ ctx += '  🔄 ' + (i.nome||i.id) + ' — iniciado ' + (i.dataInicio||'?') + '\n'; });
+
+  // Perdas
+  if(perdas.length){
+    ctx += '\n>> PERDAS REGISTRADAS HOJE (' + perdas.length + ' itens)\n';
+    perdas.slice(0,5).forEach(function(p){ ctx += '  • ' + (p.produto||p.nome||'Item') + ': ' + (p.quantidade||'?') + ' ' + (p.unidade||'un') + '\n'; });
+  }
+
+  // Últimos 7 dias resumo
+  ctx += '\n>> RESUMO 7 DIAS: ' + result7d.length + ' checklists | ' + reprov7d.length + ' reprovados | ' + planosAtrasados.length + ' planos atrasados\n';
 
   var sp = 'Você é um assistente de gestão integrado ao Fluxo Certo 360, sistema para supermercados e varejo.\n' +
-    'Responda SEMPRE em português brasileiro. Seja objetivo, prático e amigável. Use emojis com moderação.\n' +
-    'Quando o usuário pedir relatórios ou análises, use os dados reais abaixo para responder com precisão.' + ctx;
+    'Responda SEMPRE em português brasileiro. Seja objetivo, prático e direto ao ponto.\n' +
+    'Use os dados reais abaixo para análises precisas. Quando identificar problemas, sugira ações concretas.' + ctx;
 
   // Garante que contents começa com mensagem do usuário (requisito da API)
   var allMsgs = _iaHist.slice(0, placeholderIdx);
