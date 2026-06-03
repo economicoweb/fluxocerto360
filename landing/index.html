@@ -557,6 +557,18 @@
     }
     .plan-card.featured .plan-cta:hover { background: #1a1a1a; }
     .plans-note { text-align: center; margin-top: 32px; font-size: 13px; color: rgba(255,255,255,.35); }
+    .plan-counter-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(255,255,255,.4); margin-bottom: 8px; }
+    .plan-card.featured .plan-counter-label { color: rgba(0,0,0,.4); }
+    .plan-counter { display: flex; align-items: center; background: rgba(255,255,255,.07); border-radius: 12px; overflow: hidden; width: fit-content; margin-bottom: 20px; }
+    .plan-card.featured .plan-counter { background: rgba(0,0,0,.1); }
+    .plan-counter button { background: none; border: none; color: #fff; font-size: 20px; font-weight: 700; width: 44px; height: 44px; cursor: pointer; transition: background .15s; flex-shrink: 0; line-height: 1; }
+    .plan-card.featured .plan-counter button { color: #0d0d0d; }
+    .plan-counter button:hover { background: rgba(255,255,255,.1); }
+    .plan-card.featured .plan-counter button:hover { background: rgba(0,0,0,.08); }
+    .plan-counter .plan-qty { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; min-width: 48px; text-align: center; color: #fff; }
+    .plan-card.featured .plan-counter .plan-qty { color: #0d0d0d; }
+    .plan-price-unit { font-size: 12px; color: rgba(255,255,255,.3); margin-top: 4px; }
+    .plan-card.featured .plan-price-unit { color: rgba(0,0,0,.35); }
     .plans-highlight {
       display: flex; align-items: flex-start; gap: 10px;
       background: rgba(255,198,0,.1); border: 1px solid rgba(255,198,0,.25);
@@ -1138,8 +1150,8 @@
     </div>
     <!-- faixa de destaque -->
     <div class="plans-highlight fade-up">
-      <span>📱</span>
-      <span><strong>Usuários e dispositivos ilimitados em todos os planos.</strong> Pague pela loja — use em celular, tablet, retaguarda ou qualquer aparelho, sem custo extra.</span>
+      <span>👤</span>
+      <span><strong>Preço por usuário ativo.</strong> Pague exatamente pelo que usar — adicione ou remova usuários a qualquer momento.</span>
     </div>
 
     <div class="plans-grid">
@@ -1148,16 +1160,21 @@
       <div class="plan-card fade-up">
         <div class="plan-badge">FC360 Checklist</div>
         <div class="plan-name">Checklist</div>
+        <div class="plan-counter-label">Usuários</div>
+        <div class="plan-counter">
+          <button onclick="planMudar('a',-1)">−</button>
+          <span class="plan-qty" id="plan-qty-a">1</span>
+          <button onclick="planMudar('a',1)">+</button>
+        </div>
         <div class="plan-price">
           <span class="currency">R$</span>
-          <strong>199</strong>
-          <span class="period">/mês por loja</span>
+          <strong id="plan-val-a">29,99</strong>
+          <span class="period">/mês</span>
         </div>
-        <p class="plan-desc">Gestão completa de processos, checklists digitais e planos de ação para sua operação.</p>
+        <div class="plan-price-unit" id="plan-unit-a">1 usuário × R$29,99</div>
+        <p class="plan-desc" style="margin-top:14px">Gestão completa de processos, checklists digitais e planos de ação para sua operação.</p>
         <div class="plan-divider"></div>
         <ul class="plan-features">
-          <li><span class="check">✓</span>Usuários ilimitados</li>
-          <li><span class="check">✓</span>Sem custo por dispositivo</li>
           <li><span class="check">✓</span>Checklists ilimitados</li>
           <li><span class="check">✓</span>Planos de ação automáticos</li>
           <li><span class="check">✓</span>Relatórios em PDF</li>
@@ -1167,19 +1184,26 @@
           <li><span class="check">✓</span>Evidências com foto</li>
           <li><span class="check">✓</span>Suporte por WhatsApp</li>
         </ul>
-        <a class="plan-cta" href="https://wa.me/5581991665457?text=Quero%20o%20FC360%20Checklist!" target="_blank">Começar com Checklist</a>
+        <a class="plan-cta" id="plan-cta-a" href="https://wa.me/5581991665457?text=Quero%20o%20FC360%20Checklist!" target="_blank">Começar com Checklist</a>
       </div>
 
       <!-- Checklist + Inventário (featured) -->
       <div class="plan-card featured fade-up" style="--delay:.1s">
         <div class="plan-badge hot">✦ Mais completo</div>
         <div class="plan-name">Checklist + Inventário</div>
+        <div class="plan-counter-label">Usuários</div>
+        <div class="plan-counter">
+          <button onclick="planMudar('b',-1)">−</button>
+          <span class="plan-qty" id="plan-qty-b">1</span>
+          <button onclick="planMudar('b',1)">+</button>
+        </div>
         <div class="plan-price">
           <span class="currency">R$</span>
-          <strong>299</strong>
-          <span class="period">/mês por loja</span>
+          <strong id="plan-val-b">49,99</strong>
+          <span class="period">/mês</span>
         </div>
-        <p class="plan-desc">Tudo do Checklist mais o módulo completo de inventário com bipagem, relatórios e etiquetas.</p>
+        <div class="plan-price-unit" id="plan-unit-b">1 usuário × R$49,99</div>
+        <p class="plan-desc" style="margin-top:14px">Tudo do Checklist mais o módulo completo de inventário com bipagem, relatórios e etiquetas.</p>
         <div class="plan-divider"></div>
         <ul class="plan-features">
           <li><span class="check">✓</span>Tudo do plano Checklist</li>
@@ -1191,10 +1215,29 @@
           <li><span class="check">✓</span>Etiquetas QR + Code128 para impressão</li>
           <li><span class="check">✓</span>Filtros por endereço, setor e coletor</li>
         </ul>
-        <a class="plan-cta" href="https://wa.me/5581991665457?text=Quero%20o%20FC360%20Checklist%20%2B%20Invent%C3%A1rio!" target="_blank">Começar com Inventário</a>
+        <a class="plan-cta" id="plan-cta-b" href="https://wa.me/5581991665457?text=Quero%20o%20FC360%20Checklist%20%2B%20Invent%C3%A1rio!" target="_blank">Começar com Inventário</a>
       </div>
     </div>
     <p class="plans-note">💬 Não tem certeza qual plano escolher? <a href="https://wa.me/5581991665457" target="_blank" style="color:var(--y);text-decoration:none;font-weight:600">Fale com a gente</a> e te ajudamos a decidir.</p>
+
+    <script>
+    (function(){
+      var PRECOS = {a:29.99, b:49.99};
+      var qtds = {a:1, b:1};
+      function fmt(n){ return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+      window.planMudar = function(id, delta){
+        qtds[id] = Math.max(1, qtds[id]+delta);
+        var q=qtds[id], p=PRECOS[id], total=q*p;
+        document.getElementById('plan-qty-'+id).textContent = q;
+        document.getElementById('plan-val-'+id).textContent = fmt(total);
+        document.getElementById('plan-unit-'+id).textContent = q+' usuário'+(q>1?'s':'')+' × R$'+fmt(p);
+        var msg = id==='a'
+          ? 'Quero%20o%20FC360%20Checklist%20para%20'+q+'%20usu%C3%A1rio'+(q>1?'s':'')+'!'
+          : 'Quero%20o%20FC360%20Checklist%20%2B%20Invent%C3%A1rio%20para%20'+q+'%20usu%C3%A1rio'+(q>1?'s':'')+'!';
+        document.getElementById('plan-cta-'+id).href = 'https://wa.me/5581991665457?text='+msg;
+      };
+    })();
+    </script>
   </div>
 </section>
 
@@ -1271,7 +1314,7 @@
           Quantos checklists posso criar?
           <span class="faq-icon">+</span>
         </div>
-        <div class="faq-a">Ilimitados em todos os planos. Você pode criar quantos checklists quiser, para quantos setores e turnos precisar.</div>
+        <div class="faq-a">Checklists ilimitados em todos os planos. O número de usuários define o valor mensal — R$29,99/usuário no plano Checklist e R$49,99/usuário no plano Checklist + Inventário.</div>
       </div>
       <div class="faq-item fade-up">
         <div class="faq-q" onclick="toggleFaq(this)">
