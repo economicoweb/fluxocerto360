@@ -3,7 +3,7 @@
 var CACHE_NAME = 'cahu360-v164';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
-var NETWORK_FIRST = ['app.js', 'index.html'];
+var NETWORK_FIRST = ['app.js', 'index.html', 'monitor.html'];
 
 var SHELL_ASSETS = [
   './',
