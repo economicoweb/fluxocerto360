@@ -806,7 +806,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '161';
+    var _BUILD = '162';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -3931,6 +3931,11 @@ function updateDash() {
         var rs = resultadosHoje.filter(function(r){return (r.setor||'')===s;});
         return rs.length ? Math.round(rs.reduce(function(acc,r){return acc+r.pct;},0)/rs.length) : null;
       });
+      var hasSetorData = setorData.some(function(v){return v!==null;});
+      var setorEmpty = document.getElementById('setor-empty');
+      var setorWrap = document.getElementById('setor-chart-wrap');
+      if (setorEmpty) setorEmpty.style.display = hasSetorData ? 'none' : '';
+      if (setorWrap) setorWrap.style.display = hasSetorData ? '' : 'none';
       S.dashCharts.setor.data.datasets[0].data = setorData;
       S.dashCharts.setor.update();
     }
@@ -4042,7 +4047,7 @@ function initDashCharts() {
       labels: setores,
       datasets:[{
         label:'Conformidade %',
-        data: setores.map(function(){return 0;}),
+        data: setores.map(function(){return null;}),
         backgroundColor: setores.map(function(s,i){
           var colors=['#c0392b','#1a5276','#2d9e62','#d68910','#8e44ad','#2980b9','#95a5a6'];
           return colors[i]+'CC';
@@ -4059,6 +4064,11 @@ function initDashCharts() {
       }
     }
   });
+  // Initially hidden until update confirms data exists
+  var _setorEmpty0 = document.getElementById('setor-empty');
+  var _setorWrap0 = document.getElementById('setor-chart-wrap');
+  if (_setorEmpty0) _setorEmpty0.style.display = '';
+  if (_setorWrap0) _setorWrap0.style.display = 'none';
 
   // Gráfico evolução de planos — últimos 7 dias
   var dias7 = [];
@@ -5198,6 +5208,7 @@ var planoFiltroAtual = 'aberto';
 var _planilhaTemplates = {}; // { "clId_itemIdx_loja": [...produtos] } — planilhas diárias carregadas do Firebase
 
 var _planosCache = null;
+var _tendPeriod = 30;
 function getPlanos() {
   if (_planosCache) return _planosCache;
   try { _planosCache = JSON.parse(localStorage.getItem(PLANO_KEY)||'[]'); } catch(e){ _planosCache = []; }
@@ -6200,52 +6211,149 @@ function renderAdesao() {
   }).join('');
 }
 
-// ── Relatório 2: Tendência Semanal ───────────────────────
+// ── Relatório 2: Tendência ────────────────────────────────
+function setTendPeriod(dias, btn) {
+  _tendPeriod = dias;
+  document.querySelectorAll('.tend-btn').forEach(function(b){b.classList.remove('tend-btn-active');});
+  if (btn) btn.classList.add('tend-btn-active');
+  renderTendencia();
+}
+
 function renderTendencia() {
   var res = getResultados();
-  function isoWeekStart(d) {
-    var dt = new Date(d);
-    var day = dt.getDay();
-    var diff = (day===0?-6:1-day);
-    dt.setDate(dt.getDate()+diff);
-    return dt.toISOString().slice(0,10);
+  var period = _tendPeriod || 30;
+  var now = new Date();
+
+  // Build day map for last N days
+  var days = [];
+  var dayMap = {};
+  for (var i = period - 1; i >= 0; i--) {
+    var d = new Date(now);
+    d.setDate(d.getDate() - i);
+    var key = d.toISOString().slice(0,10);
+    days.push(key);
+    dayMap[key] = {soma:0, cnt:0};
   }
 
-  // Últimas 8 semanas
-  var weekMap = {};
-  res.forEach(function(r){
+  res.forEach(function(r) {
     if (!r.dataHora) return;
-    var parts=r.dataHora.split(' ')[0].split('/');
-    var dt=new Date(parseInt(parts[2]),parseInt(parts[1])-1,parseInt(parts[0]));
-    var wk=isoWeekStart(dt);
-    if (!weekMap[wk]) weekMap[wk]={soma:0,cnt:0};
-    weekMap[wk].soma+=r.pct;
-    weekMap[wk].cnt++;
+    var p = r.dataHora.split(' ')[0].split('/');
+    if (p.length < 3) return;
+    var key = p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0');
+    if (!dayMap[key]) return;
+    dayMap[key].soma += r.pct;
+    dayMap[key].cnt++;
   });
 
-  var weeks = Object.keys(weekMap).sort().slice(-8);
-  var labels = weeks.map(function(w){ return w.slice(5); });
-  var data   = weeks.map(function(w){ var o=weekMap[w]; return Math.round(o.soma/o.cnt); });
+  var totalPoints = days.filter(function(d){ return dayMap[d].cnt > 0; }).length;
+  var emptyEl = document.getElementById('tend-empty');
+  var wrapEl = document.getElementById('tend-chart-wrap');
 
-  if (S.relCharts.tendencia) { S.relCharts.tendencia.destroy(); S.relCharts.tendencia=null; }
+  if (S.relCharts.tendencia) { S.relCharts.tendencia.destroy(); S.relCharts.tendencia = null; }
+
+  if (totalPoints === 0) {
+    if (emptyEl) emptyEl.style.display = '';
+    if (wrapEl) wrapEl.style.display = 'none';
+    var tbody0 = document.getElementById('corp-tendencia-tbody');
+    if (tbody0) tbody0.innerHTML = '<tr class="erow"><td colspan="4">Nenhum dado no período</td></tr>';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (wrapEl) wrapEl.style.display = '';
+
+  // For longer periods, trim leading empty days
+  var firstIdx = 0;
+  if (period > 7) {
+    while (firstIdx < days.length - 1 && dayMap[days[firstIdx]].cnt === 0) firstIdx++;
+  }
+  var visibleDays = days.slice(firstIdx);
+
+  var labels = visibleDays.map(function(d){ return d.slice(8)+'/'+d.slice(5,7); });
+  var dataMedia = visibleDays.map(function(d){
+    var o = dayMap[d];
+    return o.cnt > 0 ? Math.round(o.soma / o.cnt) : null;
+  });
+  var dataCnt = visibleDays.map(function(d){
+    return dayMap[d].cnt > 0 ? dayMap[d].cnt : null;
+  });
+
   var ctx = document.getElementById('chart-tendencia');
   if (ctx) {
     S.relCharts.tendencia = new Chart(ctx, {
-      type:'line',
-      data:{labels:labels,datasets:[{label:'Média %',data:data,borderColor:'#2d9e62',backgroundColor:'rgba(45,158,98,.15)',tension:.35,fill:true,pointRadius:5,pointBackgroundColor:'#2d9e62'}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true}},scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%';}}}}}
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Média %',
+            type: 'line',
+            data: dataMedia,
+            borderColor: '#2d9e62',
+            backgroundColor: 'rgba(45,158,98,.12)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: '#2d9e62',
+            borderWidth: 2,
+            yAxisID: 'y',
+            spanGaps: true,
+            order: 1
+          },
+          {
+            label: 'Enviados',
+            type: 'bar',
+            data: dataCnt,
+            backgroundColor: 'rgba(255,198,0,.4)',
+            borderColor: '#FFC600',
+            borderWidth: 1,
+            borderRadius: 3,
+            yAxisID: 'y2',
+            order: 2
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {display:true, labels:{color:'rgba(255,255,255,.65)', font:{size:12}, boxWidth:12}}
+        },
+        scales: {
+          x: {
+            ticks: {color:'rgba(255,255,255,.5)', maxRotation: period > 14 ? 45 : 0, font:{size: period > 14 ? 9 : 11}},
+            grid: {color:'rgba(255,255,255,.05)'}
+          },
+          y: {
+            min:0, max:100, position:'left',
+            ticks: {color:'#2d9e62', callback:function(v){return v+'%';}, font:{size:11}},
+            grid: {color:'rgba(255,255,255,.05)'}
+          },
+          y2: {
+            min:0, position:'right',
+            ticks: {color:'#FFC600', stepSize:1, font:{size:11}},
+            grid: {display:false}
+          }
+        }
+      }
     });
   }
 
+  // Table: days with data, most recent first
   var tbody = document.getElementById('corp-tendencia-tbody');
   if (!tbody) return;
-  if (!weeks.length) { tbody.innerHTML='<tr class="erow"><td colspan="4">Nenhum dado</td></tr>'; return; }
-  tbody.innerHTML = weeks.map(function(w,i){
-    var o=weekMap[w];
-    var med=Math.round(o.soma/o.cnt);
-    var prev = i>0 ? Math.round(weekMap[weeks[i-1]].soma/weekMap[weeks[i-1]].cnt) : null;
-    var variacao = prev===null ? '—' : (med>prev?'<span style="color:var(--g)">↑ +'+(med-prev)+'%</span>':med<prev?'<span style="color:var(--r)">↓ '+(med-prev)+'%</span>':'<span style="color:var(--t3)">→ 0%</span>');
-    return '<tr><td>'+w+'</td><td>'+o.cnt+'</td><td><strong>'+med+'%</strong></td><td>'+variacao+'</td></tr>';
+  var daysWithData = days.filter(function(d){ return dayMap[d].cnt > 0; }).reverse();
+  tbody.innerHTML = daysWithData.map(function(d, i) {
+    var o = dayMap[d];
+    var med = Math.round(o.soma / o.cnt);
+    var prevDay = daysWithData[i + 1];
+    var prev = prevDay ? Math.round(dayMap[prevDay].soma / dayMap[prevDay].cnt) : null;
+    var variacao = prev === null ? '—' :
+      (med > prev ? '<span style="color:var(--g)">↑ +'+(med-prev)+'%</span>' :
+       med < prev ? '<span style="color:var(--r)">↓ '+(med-prev)+'%</span>' :
+       '<span style="color:var(--t3)">→ 0%</span>');
+    var label = d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+    return '<tr><td>'+label+'</td><td>'+o.cnt+'</td><td><strong>'+med+'%</strong></td><td>'+variacao+'</td></tr>';
   }).join('');
 }
 

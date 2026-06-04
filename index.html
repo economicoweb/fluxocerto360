@@ -16,7 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
-<link rel="stylesheet" href="style.css?v=161"/>
+<link rel="stylesheet" href="style.css?v=162"/>
 </head>
 <body>
 
@@ -207,7 +207,7 @@
         <!-- Gráficos -->
         <div class="g2" style="margin-bottom:14px">
           <div class="card" style="display:none"><div class="card-hdr"><div class="card-title">Perdas por Setor</div></div><div style="position:relative;height:210px"><canvas id="chartPerdas"></canvas></div></div>
-          <div class="card"><div class="card-hdr"><div class="card-title">Conformidade por Setor — Hoje</div></div><div style="position:relative;height:210px"><canvas id="chartSetor"></canvas></div></div>
+          <div class="card"><div class="card-hdr"><div class="card-title">Conformidade por Setor — Hoje</div></div><div id="setor-empty" style="display:none;padding:50px 20px;text-align:center;color:var(--t3);font-size:13px">Nenhum checklist enviado hoje</div><div id="setor-chart-wrap" style="position:relative;height:210px"><canvas id="chartSetor"></canvas></div></div>
           <div class="card"><div class="card-hdr"><div class="card-title">Conformidade — Últimos 7 dias</div></div><div style="position:relative;height:210px"><canvas id="chartCheck"></canvas></div></div>
           <div class="card"><div class="card-hdr"><div class="card-title">Planos de Ação — Últimos 7 dias</div></div><div style="position:relative;height:210px"><canvas id="chartPlanoEvol"></canvas></div></div>
           <div class="card"><div class="card-hdr"><div class="card-title">Operadores Ativos Hoje</div><span id="dash-ops-hoje-count" style="font-size:12px;color:var(--t3)"></span></div><div id="dash-ops-hoje" style="max-height:210px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-top:4px"></div></div>
@@ -721,12 +721,20 @@
           <!-- SUB: TENDÊNCIA -->
           <div id="rel-corp-tendencia" style="display:none">
             <div class="card" style="margin-bottom:14px">
-              <div class="card-hdr"><div class="card-title">Tendência Semanal — Média %</div></div>
-              <div style="position:relative;height:400px"><canvas id="chart-tendencia"></canvas></div>
+              <div class="card-hdr">
+                <div class="card-title">Tendência de Conformidade</div>
+                <div style="display:flex;gap:6px">
+                  <button class="tend-btn" onclick="setTendPeriod(7,this)">7 dias</button>
+                  <button class="tend-btn tend-btn-active" onclick="setTendPeriod(30,this)">30 dias</button>
+                  <button class="tend-btn" onclick="setTendPeriod(90,this)">90 dias</button>
+                </div>
+              </div>
+              <div id="tend-empty" style="display:none;text-align:center;padding:60px 20px;color:var(--t3)"><div style="font-size:30px;margin-bottom:10px">📊</div><div style="font-size:13px">Nenhum dado no período.<br>Envie checklists para ver a tendência.</div></div>
+              <div id="tend-chart-wrap" style="position:relative;height:380px"><canvas id="chart-tendencia"></canvas></div>
             </div>
             <div class="card">
-              <div class="card-hdr"><div class="card-title">Resumo Semanal</div></div>
-              <table><thead><tr><th>Semana</th><th>Enviados</th><th>Média %</th><th>Variação</th></tr></thead>
+              <div class="card-hdr"><div class="card-title">Resumo Diário</div></div>
+              <table><thead><tr><th>Data</th><th>Enviados</th><th>Média %</th><th>Variação</th></tr></thead>
               <tbody id="corp-tendencia-tbody"><tr class="erow"><td colspan="4">Nenhum dado</td></tr></tbody></table>
             </div>
           </div>
@@ -1692,7 +1700,7 @@
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="app.js?v=161" defer></script>
+<script src="app.js?v=162" defer></script>
 
 
 </body>
