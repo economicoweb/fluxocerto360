@@ -873,7 +873,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '163';
+    var _BUILD = '164';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -882,7 +882,7 @@ function finalizarLogin(found) {
     var lastPage = sessionStorage.getItem('eco_last_page') || localStorage.getItem('eco_last_page');
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
-      gerencia:   ['checklist','relatorios'],
+      gerencia:   ['checklist','relatorios','plano'],
       supervisor: ['dashboard','checklist','relatorios','plano','inv-coleta'],
       operator:   ['checklist','inv-coleta'],
       prevencao:  ['checklist','inv-coleta'],
@@ -997,7 +997,7 @@ function setupRole() {
   show('btn-zerar-dados', isAdmin);
   show('nav-users', isAdmin && !isColetor);
   show('nav-alertas', (isAdmin || isSup) && !isColetor);
-  show('nav-plano', (isAdmin || isSup) && !isColetor);
+  show('nav-plano', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-checklist', !isColetor);
   show('nav-sec-checklist', !isColetor);
   // FC360 Inventário — só admin por enquanto
@@ -5516,8 +5516,8 @@ function filtrarPlanos(filtro, el) {
 function renderPlanos(filtro) {
   var lista = getPlanos();
   var loja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
-  var isAdmin = S.role==='admin'||S.role==='gerencia'||S.role==='supervisor';
-  if (!isAdmin && loja) lista = lista.filter(function(p){ return (p.loja||'').toLowerCase()===loja; });
+  var isAdmin = S.role==='admin'||S.role==='supervisor'; // gerência vê só sua loja
+  if ((!isAdmin && loja) || (S.role==='gerencia' && loja)) lista = lista.filter(function(p){ return (p.loja||'').toLowerCase()===loja; });
   if (filtro && filtro!=='todos') lista = lista.filter(function(p){ return p.status===filtro; });
   var dtIni = (document.getElementById('plano-dt-ini')||{}).value||'';
   var dtFim = (document.getElementById('plano-dt-fim')||{}).value||'';
@@ -5621,7 +5621,12 @@ function renderPlanos(filtro) {
 function atualizarBadgePlano() {
   var badge = document.getElementById('badge-plano');
   if (!badge) return;
-  var abertos = getPlanos().filter(function(p){ return p.status==='aberto'; }).length;
+  var loja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
+  var lista = getPlanos();
+  if ((S.role==='gerencia' || (S.role!=='admin'&&S.role!=='supervisor')) && loja) {
+    lista = lista.filter(function(p){ return (p.loja||'').toLowerCase()===loja; });
+  }
+  var abertos = lista.filter(function(p){ return p.status==='aberto'; }).length;
   if (abertos > 0) { badge.style.display='flex'; badge.textContent=abertos; }
   else { badge.style.display='none'; }
 }
