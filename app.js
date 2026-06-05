@@ -873,7 +873,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '165';
+    var _BUILD = '166';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -2223,7 +2223,18 @@ function enviarCL(clId, label) {
   // Bloqueia envio se há planos vencidos para a loja do operador
   var vencidos = _planosVencidosDoUsuario();
   if (vencidos.length) {
-    showToast('🚨 Envio bloqueado: '+vencidos.length+' plano(s) de ação vencido(s). Use o botão "⏳ Prorrogar" no aviso acima.', 5000);
+    var vcEl = document.getElementById('vencido-count');
+    var vlEl = document.getElementById('vencido-lista');
+    if (vcEl) vcEl.textContent = vencidos.length;
+    if (vlEl) vlEl.innerHTML = vencidos.map(function(p){
+      var inf = _prazoInfo(p);
+      return '<div style="padding:8px 10px;background:var(--gray);border-radius:8px;margin-bottom:6px;border-left:3px solid var(--r)">'
+        +'<div style="font-size:13px;font-weight:600;color:var(--t)">'+p.desc+'</div>'
+        +(inf?'<div style="font-size:11px;color:var(--r);margin-top:2px">'+inf.texto+'</div>':'')
+        +'</div>';
+    }).join('');
+    var mv = document.getElementById('modal-plano-vencido');
+    if (mv) mv.style.display = 'flex';
     return;
   }
   var cl = getMyCLs().find(function(c){return c.id===clId;});
@@ -5750,6 +5761,13 @@ function renderAlertaPlanos() {
   wrap.style.display = html ? 'block' : 'none';
 }
 
+function abrirProrrogacaoPrimeiroVencido() {
+  var mv = document.getElementById('modal-plano-vencido');
+  if (mv) mv.style.display = 'none';
+  var vencidos = _planosVencidosDoUsuario();
+  if (vencidos.length) solicitarProrrogacao(vencidos[0].id);
+}
+
 var _pendingProrrogacaoPlanoId = null;
 function solicitarProrrogacao(planoId) {
   var plano = getPlanos().find(function(p){ return p.id === planoId; });
@@ -5757,14 +5775,15 @@ function solicitarProrrogacao(planoId) {
   _pendingProrrogacaoPlanoId = planoId;
   document.getElementById('mprorrog-desc').textContent = plano.desc;
   var m = document.getElementById('prorrog-motivo'); if (m) m.value = '';
-  var h = document.getElementById('prorrog-horas'); if (h) h.value = '48';
+  var h = document.getElementById('prorrog-dias'); if (h) h.value = '3';
   var e = document.getElementById('mprorrog-err'); if (e) e.style.display = 'none';
   document.getElementById('modal-prorrogacao').style.display = 'flex';
 }
 
 function salvarProrrogacao() {
   var motivo = (document.getElementById('prorrog-motivo')||{}).value || '';
-  var horas = parseInt((document.getElementById('prorrog-horas')||{}).value||'48');
+  var dias = parseInt((document.getElementById('prorrog-dias')||{}).value||'3');
+  var horas = Math.max(1, dias) * 24;
   var errEl = document.getElementById('mprorrog-err');
   if (!motivo.trim()) { if(errEl){errEl.textContent='Informe o motivo.';errEl.style.display='block';} return; }
   if (!_pendingProrrogacaoPlanoId) return;

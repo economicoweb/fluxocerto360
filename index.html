@@ -1706,19 +1706,35 @@
     </div>
     <div class="frow c1">
       <div class="fg">
-        <label>Tempo adicional solicitado</label>
-        <select id="prorrog-horas" style="padding:8px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit;width:100%;background:#fff">
-          <option value="24">+24 horas (1 dia)</option>
-          <option value="48" selected>+48 horas (2 dias)</option>
-          <option value="72">+72 horas (3 dias)</option>
-          <option value="120">+120 horas (5 dias)</option>
-        </select>
+        <label>Quantos dias precisa para resolver?</label>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+          <input type="number" id="prorrog-dias" min="1" max="30" value="3"
+            style="width:80px;padding:10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:22px;font-weight:700;text-align:center;color:var(--t)">
+          <span style="font-size:14px;color:var(--t2);line-height:1.4">dias de<br>prazo adicional</span>
+        </div>
       </div>
     </div>
     <div class="modal-err" id="mprorrog-err" style="display:none"></div>
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-p" onclick="salvarProrrogacao()">📨 Enviar Solicitação</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-prorrogacao').style.display='none'">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PLANO VENCIDO — bloqueio de envio -->
+<div class="modal-bg" id="modal-plano-vencido" style="display:none">
+  <div class="modal-box" style="max-width:400px;text-align:center">
+    <div style="font-size:52px;margin-bottom:8px">🚨</div>
+    <div class="modal-title" style="color:var(--r);margin-bottom:8px">Envio Bloqueado</div>
+    <div style="font-size:14px;color:var(--t2);line-height:1.6;margin-bottom:16px">
+      Você possui <strong id="vencido-count" style="color:var(--r)">1</strong> plano(s) de ação vencido(s).<br>
+      Solicite uma prorrogação ou entre em contato com a Central para desbloquear o envio.
+    </div>
+    <div id="vencido-lista" style="text-align:left;margin-bottom:16px"></div>
+    <div class="btn-row" style="justify-content:center;flex-direction:column;gap:8px">
+      <button class="btn btn-p" style="width:100%" onclick="abrirProrrogacaoPrimeiroVencido()">⏳ Solicitar Prorrogação</button>
+      <button class="btn btn-s" style="width:100%" onclick="document.getElementById('modal-plano-vencido').style.display='none'">Fechar</button>
     </div>
   </div>
 </div>
@@ -1768,7 +1784,7 @@
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="app.js?v=165" defer></script>
+<script src="app.js?v=166" defer></script>
 
 
 </body>
