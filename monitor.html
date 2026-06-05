@@ -304,7 +304,7 @@ db.collection('resultados').onSnapshot(function(snap) {
 
 db.collection('planos').onSnapshot(function(snap) {
   var ativos = snap.docs.filter(function(d){
-    var s=d.data().status; return s==='aberto'||s==='andamento';
+    var s=d.data().status; return s==='aberto'||s==='andamento'||s==='em-andamento';
   });
   planosAbertos = ativos.length;
   planosLista = ativos.map(function(d){return Object.assign({id:d.id},d.data());});
@@ -517,7 +517,7 @@ function updateChecklistScreen() {
         return a.status==='aberto'?-1:1;
       }).slice(0,5);
       planoEl.innerHTML = planSort.map(function(p){
-        var isAnd = p.status==='andamento';
+        var isAnd = p.status==='andamento'||p.status==='em-andamento';
         var titulo = p.desc||p.descricao||p.acao||'(sem título)';
         var loja = p.loja||'';
         var resp = p.responsavel||'';
