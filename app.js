@@ -5152,9 +5152,6 @@ function exportarRelatorioSupervisor() {
   var opsUnicos = [];
   resFilt.forEach(function(r){ if(opsUnicos.indexOf(r.operador)<0) opsUnicos.push(r.operador); });
 
-  // Perdas do dia
-  var totalPerdas = S.perdaItems.reduce(function(s,i){ return s+i.total; },0);
-
   // ── Seção: Status da equipe ──
   var equipeTbody = users.length ? users.map(function(u){
     var urs   = resFilt.filter(function(r){ return r.operador===u.nome; });
@@ -5200,18 +5197,6 @@ function exportarRelatorioSupervisor() {
       +'<td style="font-weight:700;color:'+cor+'">'+(p.atrasado?'⚠ ATRASADO':'Pendente')+'</td>'
       +'</tr>';
   }).join('') : '<tr><td colspan="4" style="text-align:center;color:#2d9e62">✅ Todos os checklists enviados</td></tr>';
-
-  // ── Seção: Perdas do dia ──
-  var perdasTbody = S.perdaItems.length ? S.perdaItems.slice().reverse().map(function(p){
-    return '<tr>'
-      +'<td>'+p.hora+'</td>'
-      +'<td>'+p.produto+'</td>'
-      +'<td>'+p.setor+'</td>'
-      +'<td>'+p.motivo+'</td>'
-      +'<td>'+p.qtd+'</td>'
-      +'<td style="font-weight:700;color:#e74c3c">R$ '+p.total.toFixed(2)+'</td>'
-      +'</tr>';
-  }).join('') : '<tr><td colspan="6" style="text-align:center;color:#999">Nenhuma perda registrada hoje</td></tr>';
 
   var statusCor = media>=80?'#2d9e62':media>=60?'#d68910':'#e74c3c';
   var statusTxt = media>=80?'NORMAL':media>=60?'ATENÇÃO':'CRÍTICO';
@@ -5274,11 +5259,6 @@ function exportarRelatorioSupervisor() {
     +'<div class="section"><div class="section-title">Checklists Pendentes</div>'
     +'<table><thead><tr><th>Checklist</th><th>Setor</th><th>Limite</th><th>Status</th></tr></thead>'
     +'<tbody>'+pendTbody+'</tbody></table></div>'
-
-    // Perdas registradas
-    +'<div class="section"><div class="section-title">Perdas Registradas no Dia</div>'
-    +'<table><thead><tr><th>Hora</th><th>Produto</th><th>Setor</th><th>Motivo</th><th>Qtd</th><th>Total</th></tr></thead>'
-    +'<tbody>'+perdasTbody+'</tbody></table></div>'
 
     // Assinaturas
     +'<div class="assinatura">'
