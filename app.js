@@ -10035,10 +10035,7 @@ function atualizarNavColeta() {
   // sb-inv-sec e nav-inv-gestao são controlados por setupRole() — não mexer aqui
   var temAberto=(S.invsCache||[]).some(function(i){ return i.status==='aberto'; });
   var isAdminOrColetor=S.role==='admin'||S.role==='coletor';
-  var visivel=(temAberto&&isAdminOrColetor);
-  colItem.style.display=visivel?'flex':'none';
-  var sep=document.getElementById('nav-inv-sep');
-  if(sep) sep.style.display=visivel?'block':'none';
+  colItem.style.display=(temAberto&&isAdminOrColetor)?'flex':'none';
 }
 
 // ── Realtime listener para aba Endereços ─────────────────────────────────────
